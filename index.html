@@ -4,55 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EruBay's HTML Testing</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background: #0a0a0a;
-            color: #e0e0e0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        nav {
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
-            padding: 1rem 2rem;
-            background: #111;
-            border-bottom: 1px solid #222;
-        }
-        nav a {
-            color: #888;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 0.95rem;
-            transition: color 0.2s;
-        }
-        nav a:hover, nav a.active { color: #667eea; }
-        nav .logo { font-size: 1.2rem; color: #e0e0e0; font-weight: 800; }
-        .grid-bg {
-            position: fixed;
-            inset: 0;
-            z-index: 0;
-            pointer-events: none;
-            overflow: hidden;
-        }
-        .grid-bg canvas { width: 100%; height: 100%; }
-        nav, #root { position: relative; z-index: 1; }
-    </style>
+    <link rel="stylesheet" href="shared.css">
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
-    <div class="grid-bg"><canvas id="gridCanvas"></canvas></div>
-    <nav>
-        <span class="logo">🧪 HTML Testing</span>
-        <a href="index.html" class="active">Home</a>
-        <a href="calculators.html">Calculators</a>
-    </nav>
     <div id="root"></div>
+    <script src="shared.js"></script>
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
@@ -293,54 +252,5 @@
             100% { background-position: 0% 50%; }
         }
     </style>
-
-    <script>
-    (function() {
-        const canvas = document.getElementById('gridCanvas');
-        const ctx = canvas.getContext('2d');
-        const GRID = 25;
-        const LINE_W = 3;
-        const COLOR = 'rgba(102, 126, 234, 0.08)';
-        const SPEED_X = 12;
-        const SPEED_Y = 8;
-        let offsetX = 0, offsetY = 0, last = 0;
-
-        function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resize);
-        resize();
-
-        function draw(ts) {
-            const dt = last ? (ts - last) / 1000 : 0;
-            last = ts;
-            offsetX = (offsetX + SPEED_X * dt) % GRID;
-            offsetY = (offsetY + SPEED_Y * dt) % GRID;
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.strokeStyle = COLOR;
-            ctx.lineWidth = LINE_W;
-
-            // vertical lines
-            for (let x = -GRID + offsetX; x <= canvas.width + GRID; x += GRID) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, canvas.height);
-                ctx.stroke();
-            }
-            // horizontal lines
-            for (let y = -GRID + offsetY; y <= canvas.height + GRID; y += GRID) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(canvas.width, y);
-                ctx.stroke();
-            }
-
-            requestAnimationFrame(draw);
-        }
-        requestAnimationFrame(draw);
-    })();
-    </script>
 </body>
 </html>
