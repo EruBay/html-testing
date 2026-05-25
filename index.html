@@ -31,54 +31,10 @@
         }
         nav a:hover, nav a.active { color: #667eea; }
         nav .logo { font-size: 1.2rem; color: #e0e0e0; font-weight: 800; }
-        .container {
-            text-align: center;
-            padding: 2rem;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-        h1 {
-            font-size: 3rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 1rem;
-        }
-        p {
-            color: #888;
-            font-size: 1.2rem;
-            margin-bottom: 2rem;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        .card {
-            background: #1a1a2e;
-            border: 1px solid #333;
-            border-radius: 12px;
-            padding: 1.5rem;
-            transition: transform 0.2s, border-color 0.2s;
-            cursor: pointer;
-        }
-        .card:hover {
-            transform: translateY(-4px);
-            border-color: #667eea;
-        }
-        .card h3 { color: #667eea; margin-bottom: 0.5rem; }
-        .card p { color: #666; font-size: 0.9rem; margin-bottom: 0; }
-        footer {
-            margin-top: 3rem;
-            color: #444;
-            font-size: 0.8rem;
-        }
     </style>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
     <nav>
@@ -86,30 +42,246 @@
         <a href="index.html" class="active">Home</a>
         <a href="calculators.html">Calculators</a>
     </nav>
-    <div class="container">
-        <h1>🧪 HTML Testing</h1>
-        <p>EruBay's playground for HTML/CSS/JS experiments</p>
-        <div class="grid">
-            <div class="card">
-                <h3>🎨 CSS</h3>
-                <p>Layouts, animations, gradients</p>
-            </div>
-            <div class="card">
-                <h3>⚡ JavaScript</h3>
-                <p>DOM, APIs, interactive demos</p>
-            </div>
-            <div class="card">
-                <h3>🎮 Canvas</h3>
-                <p>2D/3D graphics experiments</p>
-            </div>
-            <a href="calculators.html" style="text-decoration:none;color:inherit">
-                <div class="card">
-                    <h3>🧮 Calculators</h3>
-                    <p>Investment & financial tools</p>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const pages = [
+            { icon: "🎨", title: "CSS", desc: "Layouts, animations, gradients", color: "#667eea", tags: ["flexbox", "grid", "keyframes", "transitions"] },
+            { icon: "⚡", title: "JavaScript", desc: "DOM, APIs, interactive demos", color: "#f59e0b", tags: ["async", "fetch", "events", "modules"] },
+            { icon: "🎮", title: "Canvas", desc: "2D/3D graphics experiments", color: "#10b981", tags: ["WebGL", "particles", "physics", "animation"] },
+            { icon: "🧮", title: "Calculators", desc: "Investment & financial tools", color: "#ec4899", tags: ["compound interest", "ROI", "projections"], href: "calculators.html" },
+        ];
+
+        function Particle({ delay }) {
+            const style = {
+                position: "absolute",
+                width: 4, height: 4,
+                borderRadius: "50%",
+                background: `hsl(${Math.random() * 60 + 230}, 80%, 65%)`,
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                opacity: 0,
+                animation: `float ${3 + Math.random() * 4}s ease-in-out ${delay}s infinite`,
+            };
+            return <div style={style} />;
+        }
+
+        function Card({ icon, title, desc, color, tags, href, index }) {
+            const [hovered, setHovered] = useState(false);
+            const [clicked, setClicked] = useState(false);
+
+            const cardStyle = {
+                background: hovered ? "#1e1e3a" : "#1a1a2e",
+                border: `1px solid ${hovered ? color : "#333"}`,
+                borderRadius: 14,
+                padding: "1.8rem 1.5rem",
+                cursor: "pointer",
+                transition: "all 0.3s cubic-bezier(.4,0,.2,1)",
+                transform: hovered ? "translateY(-6px) scale(1.02)" : clicked ? "scale(0.97)" : "translateY(0)",
+                boxShadow: hovered ? `0 12px 40px ${color}22` : "none",
+                position: "relative",
+                overflow: "hidden",
+                opacity: 0,
+                animation: `fadeSlideUp 0.5s ease ${index * 0.1}s forwards`,
+                textDecoration: "none",
+                color: "inherit",
+                display: "block",
+            };
+
+            const glowStyle = {
+                position: "absolute",
+                top: 0, left: 0, right: 0,
+                height: 3,
+                background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
+                opacity: hovered ? 1 : 0,
+                transition: "opacity 0.3s",
+            };
+
+            const iconStyle = {
+                fontSize: 36,
+                marginBottom: 12,
+                display: "inline-block",
+                transition: "transform 0.3s",
+                transform: hovered ? "scale(1.2) rotate(-5deg)" : "scale(1)",
+            };
+
+            const content = (
+                <div
+                    style={cardStyle}
+                    onMouseEnter={() => setHovered(true)}
+                    onMouseLeave={() => { setHovered(false); setClicked(false); }}
+                    onMouseDown={() => setClicked(true)}
+                    onMouseUp={() => setClicked(false)}
+                >
+                    <div style={glowStyle} />
+                    <div style={iconStyle}>{icon}</div>
+                    <h3 style={{ color, marginBottom: 6, fontSize: 18, fontWeight: 700 }}>{title}</h3>
+                    <p style={{ color: "#888", fontSize: 14, marginBottom: 12, lineHeight: 1.4 }}>{desc}</p>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {tags.map(t => (
+                            <span key={t} style={{
+                                fontSize: 11, padding: "3px 8px", borderRadius: 6,
+                                background: `${color}15`, color: `${color}cc`, fontWeight: 600,
+                                border: `1px solid ${color}25`,
+                            }}>{t}</span>
+                        ))}
+                    </div>
                 </div>
-            </a>
-        </div>
-        <footer>Built with ☕ by EruBay</footer>
-    </div>
+            );
+
+            if (href) return <a href={href} style={{ textDecoration: "none", color: "inherit" }}>{content}</a>;
+            return content;
+        }
+
+        function TypeWriter({ text, speed = 60 }) {
+            const [displayed, setDisplayed] = useState("");
+            const [done, setDone] = useState(false);
+            useEffect(() => {
+                let i = 0;
+                const timer = setInterval(() => {
+                    i++;
+                    setDisplayed(text.slice(0, i));
+                    if (i >= text.length) { clearInterval(timer); setDone(true); }
+                }, speed);
+                return () => clearInterval(timer);
+            }, [text, speed]);
+            return (
+                <span>
+                    {displayed}
+                    <span style={{
+                        borderRight: "2px solid #667eea",
+                        marginLeft: 2,
+                        animation: done ? "blink 1s step-end infinite" : "none",
+                    }}>&nbsp;</span>
+                </span>
+            );
+        }
+
+        function Stats() {
+            const [count, setCount] = useState(0);
+            const target = pages.length;
+            useEffect(() => {
+                if (count < target) {
+                    const t = setTimeout(() => setCount(c => c + 1), 200);
+                    return () => clearTimeout(t);
+                }
+            }, [count, target]);
+
+            const stats = [
+                { label: "Experiments", value: count, color: "#667eea" },
+                { label: "Technologies", value: count * 3, color: "#10b981" },
+                { label: "Lines of Fun", value: "∞", color: "#f59e0b" },
+            ];
+
+            return (
+                <div style={{ display: "flex", gap: 16, marginBottom: 32, flexWrap: "wrap", justifyContent: "center" }}>
+                    {stats.map(s => (
+                        <div key={s.label} style={{
+                            padding: "10px 24px", background: "#111", borderRadius: 10,
+                            borderLeft: `3px solid ${s.color}`, minWidth: 120,
+                            opacity: 0, animation: "fadeSlideUp 0.5s ease 0.3s forwards",
+                        }}>
+                            <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
+                            <div style={{ fontSize: 11, color: "#666", fontWeight: 600 }}>{s.label}</div>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
+        function App() {
+            const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+            return (
+                <div
+                    style={{
+                        flex: 1, display: "flex", flexDirection: "column",
+                        alignItems: "center", justifyContent: "center",
+                        padding: "3rem 2rem", position: "relative", overflow: "hidden",
+                    }}
+                    onMouseMove={e => setMousePos({ x: e.clientX, y: e.clientY })}
+                >
+                    {/* Animated background */}
+                    <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
+                        {Array.from({ length: 20 }, (_, i) => <Particle key={i} delay={i * 0.3} />)}
+                        <div style={{
+                            position: "absolute",
+                            width: 400, height: 400,
+                            borderRadius: "50%",
+                            background: "radial-gradient(circle, #667eea08, transparent 70%)",
+                            left: mousePos.x - 200, top: mousePos.y - 200,
+                            transition: "left 0.3s ease, top 0.3s ease",
+                            pointerEvents: "none",
+                        }} />
+                    </div>
+
+                    {/* Title */}
+                    <h1 style={{
+                        fontSize: "clamp(2rem, 5vw, 3.5rem)",
+                        background: "linear-gradient(135deg, #667eea 0%, #764ba2 50%, #ec4899 100%)",
+                        backgroundSize: "200% 200%",
+                        animation: "gradientShift 4s ease infinite",
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                        marginBottom: 8,
+                        position: "relative",
+                    }}>
+                        🧪 HTML Testing
+                    </h1>
+
+                    <p style={{
+                        color: "#888", fontSize: "1.1rem", marginBottom: 24,
+                        maxWidth: 500, lineHeight: 1.5,
+                    }}>
+                        <TypeWriter text="EruBay's playground for HTML, CSS & JS experiments" speed={40} />
+                    </p>
+
+                    <Stats />
+
+                    {/* Cards grid */}
+                    <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                        gap: 16,
+                        maxWidth: 900,
+                        width: "100%",
+                        position: "relative",
+                    }}>
+                        {pages.map((p, i) => <Card key={p.title} {...p} index={i} />)}
+                    </div>
+
+                    <footer style={{
+                        marginTop: 48, color: "#333", fontSize: 13,
+                        opacity: 0, animation: "fadeSlideUp 0.5s ease 0.8s forwards",
+                    }}>
+                        Built with ☕ by EruBay
+                    </footer>
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+
+    <style>
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes float {
+            0%, 100% { opacity: 0; transform: translateY(0); }
+            50% { opacity: 0.6; transform: translateY(-30px); }
+        }
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+    </style>
 </body>
 </html>
