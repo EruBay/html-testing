@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dev Performance Calculators</title>
+    <link rel='stylesheet' href='shared.css'>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a0a;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+            min-height: 100vh;
+        }
+        #app { max-width: 1400px; margin: 0 auto; padding: 2rem 1.5rem; }
+        .page-title {
+            text-align: center;
+            font-size: 2.4rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #00ff88, #00bbff, #ff44cc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .page-subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 2.5rem;
+            font-size: 1.05rem;
+        }
+        .calculators-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+            gap: 1.5rem;
+        }
+        .calc-card {
+            background: #1a1a2e;
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid #2a2a4a;
+            transition: border-color 0.3s;
+        }
+        .calc-card:hover { border-color: var(--accent, #555); }
+        .calc-card h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .calc-card h2 .icon { font-size: 1.4rem; }
+        .input-group { margin-bottom: 0.85rem; }
+        .input-group label {
+            display: block;
+            font-size: 0.82rem;
+            color: #aaa;
+            margin-bottom: 0.3rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 0.55rem 0.75rem;
+            background: #0d0d1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-group input:focus, .input-group select:focus {
+            border-color: var(--accent, #00ff88);
+        }
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        .input-row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0.75rem;
+        }
+        .result-box {
+            background: #0d0d1a;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-top: 1rem;
+            border: 1px solid #2a2a4a;
+        }
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.35rem 0;
+            font-size: 0.92rem;
+        }
+        .result-row .label { color: #999; }
+        .result-row .value { font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+        .big-value {
+            font-size: 2rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            text-align: center;
+            margin: 0.5rem 0;
+        }
+        .budget-bar-container {
+            height: 28px;
+            background: #0d0d1a;
+            border-radius: 14px;
+            overflow: hidden;
+            margin-top: 0.75rem;
+            position: relative;
+        }
+        .budget-bar-fill {
+            height: 100%;
+            border-radius: 14px;
+            transition: width 0.3s, background 0.3s;
+        }
+        .budget-bar-label {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #fff;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+        }
+        .slider-group { margin-bottom: 0.6rem; }
+        .slider-group .slider-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            margin-bottom: 0.2rem;
+        }
+        .slider-group .slider-header .name { color: #ccc; }
+        .slider-group .slider-header .val { color: var(--accent, #00ff88); font-family: monospace; }
+        .slider-group input[type=range] {
+            width: 100%;
+            -webkit-appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            background: #333;
+            outline: none;
+        }
+        .slider-group input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent, #00ff88);
+            cursor: pointer;
+        }
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.85rem;
+        }
+        .toggle-row label { font-size: 0.85rem; color: #aaa; }
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            cursor: pointer;
+        }
+        .toggle-switch input { display: none; }
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: #333;
+            border-radius: 12px;
+            transition: background 0.3s;
+        }
+        .toggle-slider::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--accent, #00ff88);
+        }
+        .toggle-switch input:checked + .toggle-slider::after {
+            transform: translateX(20px);
+        }
+        .lod-level {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #1a1a2e;
+        }
+        .lod-level:last-child { border-bottom: none; }
+        .lod-badge {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            min-width: 55px;
+            text-align: center;
+        }
+        .suggestion-list { list-style: none; padding: 0; margin-top: 0.5rem; }
+        .suggestion-list li {
+            padding: 0.35rem 0;
+            font-size: 0.85rem;
+            color: #bbb;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.4rem;
+        }
+        .suggestion-list li::before {
+            content: '💡';
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+        .section-divider {
+            border-top: 1px solid #2a2a4a;
+            margin: 1rem 0;
+            padding-top: 0.75rem;
+        }
+        .section-divider h3 {
+            font-size: 0.9rem;
+            color: #aaa;
+            margin-bottom: 0.75rem;
+        }
+        .full-width { grid-column: 1 / -1; }
+        @media (max-width: 900px) {
+            .calculators-grid { grid-template-columns: 1fr; }
+            #app { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+    <script src='shared.js'></script>
+    <script type="text/babel">
+
+    // ─── Frame Budget Calculator ───────────────────────────────────────
+    function FrameBudgetCalc() {
+        const [fps, setFps] = React.useState(60);
+        const [physics, setPhysics] = React.useState(2);
+        const [rendering, setRendering] = React.useState(6);
+        const [ai, setAi] = React.useState(1.5);
+        const [scripts, setScripts] = React.useState(2);
+        const [overhead, setOverhead] = React.useState(1);
+
+        const budgetMs = 1000 / fps;
+        const usedMs = physics + rendering + ai + scripts + overhead;
+        const pct = Math.min((usedMs / budgetMs) * 100, 100);
+        const remaining = budgetMs - usedMs;
+
+        let barColor = '#00ff88';
+        if (pct > 85) barColor = '#ff4444';
+        else if (pct > 65) barColor = '#ffaa00';
+
+        const sliders = [
+            { label: 'Physics', value: physics, set: setPhysics },
+            { label: 'Rendering', value: rendering, set: setRendering },
+            { label: 'AI', value: ai, set: setAi },
+            { label: 'Scripts', value: scripts, set: setScripts },
+            { label: 'Overhead', value: overhead, set: setOverhead },
+        ];
+
+        return (
+            <div className="calc-card" style={{'--accent': '#00ff88'}}>
+                <h2><span className="icon">⏱️</span> Frame Budget Calculator</h2>
+                <div className="input-group">
+                    <label>Target FPS</label>
+                    <select value={fps} onChange={e => setFps(Number(e.target.value))}>
+                        {[30, 60, 120, 144].map(f => <option key={f} value={f}>{f} FPS</option>)}
+                    </select>
+                </div>
+                <div className="big-value" style={{color: '#00ff88'}}>{budgetMs.toFixed(2)} ms</div>
+                <p style={{textAlign:'center', color:'#888', fontSize:'0.82rem', marginBottom:'1rem'}}>per frame budget</p>
+
+                {sliders.map(s => (
+                    <div className="slider-group" key={s.label}>
+                        <div className="slider-header">
+                            <span className="name">{s.label}</span>
+                            <span className="val">{s.value.toFixed(1)} ms</span>
+                        </div>
+                        <input type="range" min="0" max={budgetMs} step="0.1"
+                            value={s.value} onChange={e => s.set(Number(e.target.value))} />
+                    </div>
+                ))}
+
+                <div className="budget-bar-container">
+                    <div className="budget-bar-fill" style={{width: pct + '%', background: barColor}} />
+                    <span className="budget-bar-label">{pct.toFixed(1)}% used</span>
+                </div>
+
+                <div className="result-box">
+                    <div className="result-row">
+                        <span className="label">Used</span>
+                        <span className="value" style={{color: barColor}}>{usedMs.toFixed(2)} ms</span>
+                    </div>
+                    <div className="result-row">
+                        <span className="label">Remaining</span>
+                        <span className="value" style={{color: remaining >= 0 ? '#00ff88' : '#ff4444'}}>
+                            {remaining.toFixed(2)} ms
+                        </span>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ─── VRAM Estimator ────────────────────────────────────────────────
+    function VRAMEstimator() {
+        const [texCount, setTexCount] = React.useState(100);
+        const [resolution, setResolution] = React.useState(1024);
+        const [format, setFormat] = React.useState('RGBA8');
+        const [mipmaps, setMipmaps] = React.useState(true);
+        const [vertCount, setVertCount] = React.useState(50000);
+        const [attribs, setAttribs] = React.useState(8);
+
+        const bpp = { RGB8: 24, RGBA8: 32, DXT1: 4, DXT5: 8, BC7: 8 };
+        const bitsPerPixel = bpp[format] || 32;
+        const texelCount = resolution * resolution;
+        const singleTexBytes = (texelCount * bitsPerPixel) / 8;
+        const mipFactor = mipmaps ? 1.333 : 1;
+        const totalTexVRAM = singleTexBytes * mipFactor * texCount;
+
+        // Mesh: pos(3f) + normal(3f) + uv(2f) = 8 floats default, 4 bytes each
+        const meshBytes = vertCount * attribs * 4;
+        const totalVRAM = totalTexVRAM + meshBytes;
+
+        const fmt = (bytes) => {
+            if (bytes >= 1024 ** 3) return (bytes / 1024 ** 3).toFixed(2) + ' GB';
+            if (bytes >= 1024 ** 2) return (bytes / 1024 ** 2).toFixed(1) + ' MB';
+            return (bytes / 1024).toFixed(1) + ' KB';
+        };
+
+        return (
+            <div className="calc-card" style={{'--accent': '#ff6b9d'}}>
+                <h2><span className="icon">🎨</span> VRAM Estimator</h2>
+                <div className="input-row">
+                    <div className="input-group">
+                        <label>Texture Count</label>
+                        <input type="number" min="1" value={texCount}
+                            onChange={e => setTexCount(Math.max(1, +e.target.value))} />
+                    </div>
+                    <div className="input-group">
+                        <label>Resolution</label>
+                        <select value={resolution} onChange={e => setResolution(+e.target.value)}>
+                            {[256, 512, 1024, 2048, 4096].map(r => <option key={r} value={r}>{r}×{r}</option>)}
+                        </select>
+                    </div>
+                </div>
+                <div className="input-group">
+                    <label>Format</label>
+                    <select value={format} onChange={e => setFormat(e.target.value)}>
+                        {Object.keys(bpp).map(f => <option key={f} value={f}>{f} ({bpp[f]} bpp)</option>)}
+                    </select>
+                </div>
+                <div className="toggle-row">
+                    <label>Mipmaps (×1.33 VRAM)</label>
+                    <label className="toggle-switch">
+                        <input type="checkbox" checked={mipmaps} onChange={e => setMipmaps(e.target.checked)} />
+                        <span className="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div className="result-box">
+                    <div className="result-row">
+                        <span className="label">Single Texture</span>
+                        <span className="value">{fmt(singleTexBytes * mipFactor)}</span>
+                    </div>
+                    <div className="result-row">
+                        <span className="label">All Textures</span>
+                        <span className="value" style={{color:'#ff6b9d'}}>{fmt(totalTexVRAM)}</span>
+                    </div>
+                </div>
+
+                <div className="section-divider">
+                    <h3>Mesh VRAM</h3>
+                    <div className="input-row">
+                        <div className="input-group">
+                            <label>Vertex Count</label>
+                            <input type="number" min="1" value={vertCount}
+                                onChange={e => setVertCount(Math.max(1, +e.target.value))} />
+                        </div>
+                        <div className="input-group">
+                            <label>Attribs (floats/vert)</label>
+                            <input type="number" min="1" max="32" value={attribs}
+                                onChange={e => setAttribs(Math.max(1, +e.target.value))} />
+                        </div>
+                    </div>
+                    <div className="result-box">
+                        <div className="result-row">
+                            <span className="label">Mesh VRAM</span>
+                            <span className="value">{fmt(meshBytes)}</span>
+                        </div>
+                        <div className="result-row" style={{borderTop:'1px solid #2a2a4a', paddingTop:'0.5rem', marginTop:'0.3rem'}}>
+                            <span className="label">Total VRAM</span>
+                            <span className="value" style={{color:'#ff6b9d', fontSize:'1.1rem'}}>{fmt(totalVRAM)}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ─── LOD Distance Calculator ───────────────────────────────────────
+    function LODDistanceCalc() {
+        const [screenH, setScreenH] = React.useState(1080);
+        const [fov, setFov] = React.useState(60);
+        const [objSize, setObjSize] = React.useState(2);
+        const [pixThresh, setPixThresh] = React.useState(100);
+
+        const fovRad = (fov * Math.PI) / 180;
+        // pixelSize = (objectSize * screenH) / (2 * distance * tan(fov/2))
+        // distance = (objectSize * screenH) / (2 * pixelSize * tan(fov/2))
+        const calcDist = (pixels) => (objSize * screenH) / (2 * pixels * Math.tan(fovRad / 2));
+
+        const lods = [
+            { label: 'LOD 0 (Full)', pixels: pixThresh, color: '#00ff88' },
+            { label: 'LOD 1 (Medium)', pixels: pixThresh * 0.5, color: '#ffaa00' },
+            { label: 'LOD 2 (Low)', pixels: pixThresh * 0.2, color: '#ff4444' },
+        ];
+
+        return (
+            <div className="calc-card" style={{'--accent': '#44aaff'}}>
+                <h2><span className="icon">📐</span> LOD Distance Calculator</h2>
+                <div className="input-row">
+                    <div className="input-group">
+                        <label>Screen Height (px)</label>
+                        <input type="number" min="1" value={screenH}
+                            onChange={e => setScreenH(Math.max(1, +e.target.value))} />
+                    </div>
+                    <div className="input-group">
+                        <label>FOV (degrees)</label>
+                        <input type="number" min="1" max="179" value={fov}
+                            onChange={e => setFov(Math.max(1, Math.min(179, +e.target.value)))} />
+                    </div>
+                </div>
+                <div className="input-row">
+                    <div className="input-group">
+                        <label>Object Size (units)</label>
+                        <input type="number" min="0.01" step="0.1" value={objSize}
+                            onChange={e => setObjSize(Math.max(0.01, +e.target.value))} />
+                    </div>
+                    <div className="input-group">
+                        <label>Pixel Threshold</label>
+                        <input type="number" min="1" value={pixThresh}
+                            onChange={e => setPixThresh(Math.max(1, +e.target.value))} />
+                    </div>
+                </div>
+
+                <div className="result-box">
+                    {lods.map((lod, i) => {
+                        const dist = calcDist(lod.pixels);
+                        return (
+                            <div className="lod-level" key={i}>
+                                <span className="lod-badge" style={{background: lod.color + '22', color: lod.color}}>
+                                    {lod.label.split('(')[0].trim()}
+                                </span>
+                                <div style={{flex:1}}>
+                                    <div style={{fontSize:'0.82rem', color:'#999'}}>{lod.label.match(/\((.+)\)/)?.[1]}</div>
+                                    <div style={{fontWeight:600}}>Switch at <span style={{color: lod.color}}>{dist.toFixed(1)}</span> units</div>
+                                    <div style={{fontSize:'0.78rem', color:'#666'}}>≤ {lod.pixels.toFixed(0)} pixels on screen</div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    }
+
+    // ─── Chunk/Grid Calculator ─────────────────────────────────────────
+    function ChunkGridCalc() {
+        const [worldSize, setWorldSize] = React.useState(4096);
+        const [chunkSize, setChunkSize] = React.useState(16);
+        const [viewDist, setViewDist] = React.useState(8);
+        const [memPerChunk, setMemPerChunk] = React.useState(64);
+
+        const chunksPerAxis = Math.ceil(worldSize / chunkSize);
+        const totalChunks = chunksPerAxis * chunksPerAxis;
+        const loadedDiameter = viewDist * 2 + 1;
+        const loadedChunks = loadedDiameter * loadedDiameter;
+        const loadedMem = loadedChunks * memPerChunk;
+        const totalMem = totalChunks * memPerChunk;
+
+        const fmtMem = (kb) => kb >= 1024 * 1024 ? (kb / 1024 / 1024).toFixed(2) + ' GB' :
+            kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB' : kb + ' KB';
+
+        return (
+            <div className="calc-card" style={{'--accent': '#bb88ff'}}>
+                <h2><span className="icon">🧱</span> Chunk / Grid Calculator</h2>
+                <div className="input-row">
+                    <div className="input-group">
+                        <label>World Size (units)</label>
+                        <input type="number" min="1" value={worldSize}
+                            onChange={e => setWorldSize(Math.max(1, +e.target.value))} />
+                    </div>
+                    <div className="input-group">
+                        <label>Chunk Size</label>
+                        <input type="number" min="1" value={chunkSize}
+                            onChange={e => setChunkSize(Math.max(1, +e.target.value))} />
+                    </div>
+                </div>
+                <div className="input-row">
+                    <div className="input-group">
+                        <label>View Distance (chunks)</label>
+                        <input type="number" min="1" value={viewDist}
+                            onChange={e => setViewDist(Math.max(1, +e.target.value))} />
+                    </div>
+                    <div className="input-group">
+                        <label>Memory / Chunk (KB)</label>
+                        <input type="number" min="1" value={memPerChunk}
+                            onChange={e => setMemPerChunk(Math.max(1, +e.target.value))} />
+                    </div>
+                </div>
+
+                <div className="result-box">
+                    <div className="result-row">
+                        <span className="label">Chunks per Axis</span>
+                        <span className="value">{chunksPerAxis.toLocaleString()}</span>
+                    </div>
+                    <div className="result-row">
+                        <span className="label">Total Chunks</span>
+                        <span className="value" style={{color:'#bb88ff'}}>{totalChunks.toLocaleString()}</span>
+                    </div>
+                    <div className="result-row">
+                        <span className="label">Loaded Chunks</span>
+                        <span className="value">{loadedChunks.toLocaleString()} ({loadedDiameter}×{loadedDiameter})</span>
+                    </div>
+                    <div className="result-row">
+                        <span className="label">Loaded Memory</span>
+                        <span className="value" style={{color:'#bb88ff'}}>{fmtMem(loadedMem)}</span>
+                    </div>
+                    <div className="result-row" style={{borderTop:'1px solid #2a2a4a', paddingTop:'0.5rem', marginTop:'0.3rem'}}>
+                        <span className="label">Total World Memory</span>
+                        <span className="value">{fmtMem(totalMem)}</span>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ─── Draw Call Budget ──────────────────────────────────────────────
+    function DrawCallBudget() {
+        const [gpuTier, setGpuTier] = React.useState('mid');
+        const [fps, setFps] = React.useState(60);
+        const [batchSize, setBatchSize] = React.useState(1);
+
+        const tierLimits = { low: 1500, mid: 5000, high: 15000, ultra: 40000 };
+        const tierLabels = { low: 'Low (Integrated)', mid: 'Mid (GTX 1060)', high: 'High (RTX 3070)', ultra: 'Ultra (RTX 4090)' };
+        const baseMax = tierLimits[gpuTier];
+        const scaledMax = Math.floor(baseMax * (60 / fps));
+        const effectiveDrawCalls = Math.floor(scaledMax / batchSize);
+        const pct = Math.min((batchSize > 1 ? 100 : (scaledMax / baseMax) * 100), 100);
+
+        const suggestions = [];
+        if (batchSize < 4) suggestions.push('Enable GPU instancing for repeated meshes');
+        if (batchSize < 8) suggestions.push('Use texture atlases to reduce material swaps');
+        if (effectiveDrawCalls < 3000) suggestions.push('Consider LOD system to reduce geometry');
+        suggestions.push('Merge static meshes where possible');
+        if (fps > 60) suggestions.push('Use occlusion culling for complex scenes');
+        suggestions.push('Sort draw calls by material to minimize state changes');
+
+        return (
+            <div className="calc-card" style={{'--accent': '#ffaa00'}}>
+                <h2><span className="icon">⚡</span> Draw Call Budget</h2>
+                <div className="input-group">
+                    <label>GPU Tier</label>
+                    <select value={gpuTier} onChange={e => setGpuTier(e.target.value)}>
+                        {Object.entries(tierLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                </div>
+                <div className="input-row">
+                    <div className="input-group">
+                        <label>Target FPS</label>
+                        <select value={fps} onChange={e => setFps(+e.target.value)}>
+                            {[30, 60, 120, 144].map(f => <option key={f} value={f}>{f} FPS</option>)}
+                        </select>
+                    </div>
+                    <div className="input-group">
+                        <label>Batch Size</label>
+                        <input type="number" min="1" max="256" value={batchSize}
+                            onChange={e => setBatchSize(Math.max(1, +e.target.value))} />
+                    </div>
+                </div>
+
+                <div className="big-value" style={{color:'#ffaa00'}}>{effectiveDrawCalls.toLocaleString()}</div>
+                <p style={{textAlign:'center', color:'#888', fontSize:'0.82rem', marginBottom:'0.5rem'}}>max effective draw calls</p>
+
+                <div className="result-box">
+                    <div className="result-row">
+                        <span className="label">Base GPU Limit</span>
+                        <span className="value">{baseMax.toLocaleString()}</span>
+                    </div>
+                    <div className="result-row">
+                        <span className="label">FPS-Adjusted</span>
+                        <span className="value">{scaledMax.toLocaleString()}</span>
+                    </div>
+                    <div className="result-row">
+                        <span className="label">Batching Factor</span>
+                        <span className="value">{batchSize}×</span>
+                    </div>
+                </div>
+
+                <div className="section-divider">
+                    <h3>Optimization Suggestions</h3>
+                    <ul className="suggestion-list">
+                        {suggestions.map((s, i) => <li key={i}>{s}</li>)}
+                    </ul>
+                </div>
+            </div>
+        );
+    }
+
+    // ─── App ───────────────────────────────────────────────────────────
+    function App() {
+        return (
+            <div>
+                <h1 className="page-title">Dev Performance Calculators</h1>
+                <p className="page-subtitle">Real-time gamedev budgeting tools — tweak values and see instant results</p>
+                <div className="calculators-grid">
+                    <FrameBudgetCalc />
+                    <VRAMEstimator />
+                    <LODDistanceCalc />
+                    <ChunkGridCalc />
+                    <DrawCallBudget />
+                </div>
+            </div>
+        );
+    }
+
+    ReactDOM.createRoot(document.getElementById('app')).render(<App />);
+    </script>
+</body>
+</html>

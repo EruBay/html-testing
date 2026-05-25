@@ -17,10 +17,12 @@
         const { useState, useEffect, useRef } = React;
 
         const pages = [
-            { icon: "🎨", title: "CSS", desc: "Layouts, animations, gradients", color: "#667eea", tags: ["flexbox", "grid", "keyframes", "transitions"] },
-            { icon: "⚡", title: "JavaScript", desc: "DOM, APIs, interactive demos", color: "#f59e0b", tags: ["async", "fetch", "events", "modules"] },
-            { icon: "🎮", title: "Canvas", desc: "2D/3D graphics experiments", color: "#10b981", tags: ["WebGL", "particles", "physics", "animation"] },
             { icon: "🧮", title: "Calculators", desc: "Investment & financial tools", color: "#ec4899", tags: ["compound interest", "ROI", "projections"], href: "calculators.html" },
+            { icon: "📐", title: "Game Math", desc: "Interactive formulas for game dev", color: "#667eea", tags: ["lerp", "vectors", "projectiles", "steering"], href: "gamemath.html" },
+            { icon: "⚙️", title: "Dev Tools", desc: "Performance budgets & VRAM estimates", color: "#10b981", tags: ["FPS budget", "VRAM", "LOD", "chunks", "draw calls"], href: "devtools.html" },
+            { icon: "🌊", title: "Noise Lab", desc: "Interactive Perlin noise playground", color: "#f59e0b", tags: ["perlin", "octaves", "terrain", "procedural"], href: "noise.html" },
+            { icon: "🎨", title: "CSS", desc: "Layouts, animations, gradients", color: "#a855f7", tags: ["flexbox", "grid", "keyframes", "transitions"] },
+            { icon: "⚡", title: "JavaScript", desc: "DOM, APIs, interactive demos", color: "#3b82f6", tags: ["async", "fetch", "events", "modules"] },
         ];
 
         function Particle({ delay }) {

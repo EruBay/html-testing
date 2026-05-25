@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Dev Math Formulas</title>
+<link rel="stylesheet" href="shared.css">
+<script src="shared.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+.gm-page { max-width: 1200px; margin: 0 auto; padding: 2rem 1rem; }
+.gm-title {
+  text-align: center; font-size: 2.4rem; font-weight: 800;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-bottom: 0.5rem;
+}
+.gm-subtitle { text-align: center; color: #888; margin-bottom: 2.5rem; font-size: 1.05rem; }
+.gm-card {
+  background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 16px;
+  padding: 1.5rem; margin-bottom: 2rem; overflow: hidden;
+}
+.gm-card h2 {
+  font-size: 1.4rem; color: #667eea; margin: 0 0 1rem 0;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.gm-card h2 .icon { font-size: 1.5rem; }
+canvas {
+  border-radius: 10px; background: #0d0d1a; display: block;
+  border: 1px solid #2a2a4a; cursor: crosshair;
+}
+.formula-box {
+  background: #12122a; border: 1px solid #2a2a4a; border-radius: 8px;
+  padding: 0.75rem 1rem; margin: 0.5rem 0; font-family: 'Courier New', monospace;
+  font-size: 0.9rem; color: #c8d6e5; line-height: 1.6;
+}
+.formula-box .fn { color: #667eea; font-weight: 700; }
+.formula-box .op { color: #f78c6c; }
+.formula-box .val { color: #c3e88d; }
+.formula-box .param { color: #c792ea; }
+.formula-box .comment { color: #546e7a; font-style: italic; }
+.controls-row {
+  display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;
+  margin: 0.75rem 0;
+}
+.controls-row label { color: #aaa; font-size: 0.9rem; display: flex; align-items: center; gap: 0.4rem; }
+.controls-row input[type="range"] {
+  -webkit-appearance: none; background: #2a2a4a; height: 6px; border-radius: 3px;
+  outline: none; width: 140px;
+}
+.controls-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+  background: #667eea; cursor: pointer;
+}
+.controls-row input[type="number"] {
+  background: #12122a; border: 1px solid #2a2a4a; color: #e0e0e0;
+  border-radius: 6px; padding: 4px 8px; width: 70px; font-size: 0.85rem;
+}
+.readout {
+  display: inline-block; background: #12122a; border: 1px solid #333;
+  border-radius: 6px; padding: 3px 10px; color: #667eea;
+  font-family: monospace; font-size: 0.85rem; margin: 2px;
+}
+.btn-group { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; }
+.btn-sm {
+  padding: 5px 14px; border-radius: 6px; border: 1px solid #2a2a4a;
+  background: #12122a; color: #ccc; cursor: pointer; font-size: 0.82rem;
+  transition: all 0.2s;
+}
+.btn-sm:hover, .btn-sm.active { background: #667eea; color: #fff; border-color: #667eea; }
+.flex-canvas { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
+.flex-canvas canvas { flex-shrink: 0; }
+.flex-canvas .side { flex: 1; min-width: 220px; }
+.legend-item { display: flex; align-items: center; gap: 6px; margin: 3px 0; font-size: 0.85rem; color: #bbb; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ========== LERP & EASING ==========
+function LerpEasing() {
+  const canvasRef = useRef(null);
+  const [t, setT] = useState(0.5);
+
+  const easeIn = t => t * t;
+  const easeOut = t => t * (2 - t);
+  const easeInOut = t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+  const linear = t => t;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const pad = 40, gw = W - pad * 2, gh = H - pad * 2;
+
+    // Grid
+    ctx.strokeStyle = '#1a1a3a'; ctx.lineWidth = 1;
+    for (let i = 0; i <= 10; i++) {
+      const x = pad + (gw * i / 10), y = pad + (gh * i / 10);
+      ctx.beginPath(); ctx.moveTo(x, pad); ctx.lineTo(x, pad + gh); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(pad + gw, y); ctx.stroke();
+    }
+
+    // Axes labels
+    ctx.fillStyle = '#555'; ctx.font = '11px monospace';
+    ctx.fillText('0', pad - 5, pad + gh + 15);
+    ctx.fillText('1', pad + gw - 3, pad + gh + 15);
+    ctx.fillText('t →', pad + gw / 2 - 8, pad + gh + 15);
+    ctx.fillText('1', pad - 15, pad + 5);
+
+    const curves = [
+      { fn: linear, color: '#888', label: 'Linear' },
+      { fn: easeIn, color: '#ff6b6b', label: 'Ease In' },
+      { fn: easeOut, color: '#51cf66', label: 'Ease Out' },
+      { fn: easeInOut, color: '#667eea', label: 'Ease InOut' },
+    ];
+
+    curves.forEach(({ fn, color }) => {
+      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
+      for (let i = 0; i <= 200; i++) {
+        const tt = i / 200;
+        const x = pad + tt * gw, y = pad + gh - fn(tt) * gh;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    });
+
+    // Current t line
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = '#667eea44'; ctx.lineWidth = 1;
+    const tx = pad + t * gw;
+    ctx.beginPath(); ctx.moveTo(tx, pad); ctx.lineTo(tx, pad + gh); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Dots
+    curves.forEach(({ fn, color }) => {
+      const x = pad + t * gw, y = pad + gh - fn(t) * gh;
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+    });
+  }, [t]);
+
+  return (
+    <div className="gm-card">
+      <h2><span className="icon">📈</span> Lerp &amp; Easing Functions</h2>
+      <div className="flex-canvas">
+        <canvas ref={canvasRef} width={460} height={320} />
+        <div className="side">
+          <div className="formula-box">
+            <span className="fn">lerp</span>(a, b, t) <span className="op">=</span> a <span className="op">+</span> (b <span className="op">-</span> a) <span className="op">*</span> <span className="param">t</span><br/>
+            <span className="comment"># Godot: lerpf(a, b, t)</span><br/><br/>
+            <span className="fn">ease_in</span>(t) <span className="op">=</span> t<span className="op">²</span><br/>
+            <span className="fn">ease_out</span>(t) <span className="op">=</span> t<span className="op">*</span>(2<span className="op">-</span>t)<br/>
+            <span className="fn">ease_in_out</span>(t) <span className="op">=</span><br/>
+            &nbsp; t&lt;0.5 ? 2t<span className="op">²</span> : -1+(4-2t)<span className="op">*</span>t
+          </div>
+          <div className="controls-row" style={{marginTop:'0.75rem'}}>
+            <label>t = <span className="readout">{t.toFixed(2)}</span></label>
+            <input type="range" min="0" max="1" step="0.01" value={t} onChange={e => setT(+e.target.value)} />
+          </div>
+          <div style={{marginTop:'0.5rem'}}>
+            <div className="legend-item"><span className="legend-dot" style={{background:'#888'}}></span> Linear: {linear(t).toFixed(3)}</div>
+            <div className="legend-item"><span className="legend-dot" style={{background:'#ff6b6b'}}></span> Ease In: {easeIn(t).toFixed(3)}</div>
+            <div className="legend-item"><span className="legend-dot" style={{background:'#51cf66'}}></span> Ease Out: {easeOut(t).toFixed(3)}</div>
+            <div className="legend-item"><span className="legend-dot" style={{background:'#667eea'}}></span> Ease InOut: {easeInOut(t).toFixed(3)}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ========== VECTOR MATH ==========
+function VectorMath() {
+  const canvasRef = useRef(null);
+  const [vecA, setVecA] = useState({ x: 120, y: -60 });
+  const [vecB, setVecB] = useState({ x: 60, y: -120 });
+  const [mode, setMode] = useState('add');
+  const dragging = useRef(null);
+
+  const origin = { x: 220, y: 200 };
+
+  const drawArrow = (ctx, ox, oy, ex, ey, color, lw = 2) => {
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = lw;
+    ctx.moveTo(ox, oy); ctx.lineTo(ex, ey); ctx.stroke();
+    const angle = Math.atan2(ey - oy, ex - ox);
+    const hl = 12;
+    ctx.beginPath(); ctx.fillStyle = color;
+    ctx.moveTo(ex, ey);
+    ctx.lineTo(ex - hl * Math.cos(angle - 0.3), ey - hl * Math.sin(angle - 0.3));
+    ctx.lineTo(ex - hl * Math.cos(angle + 0.3), ey - hl * Math.sin(angle + 0.3));
+    ctx.closePath(); ctx.fill();
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    // Grid
+    ctx.strokeStyle = '#1a1a3a'; ctx.lineWidth = 0.5;
+    for (let x = 0; x < W; x += 30) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = 0; y < H; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // Origin cross
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(origin.x, 0); ctx.lineTo(origin.x, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, origin.y); ctx.lineTo(W, origin.y); ctx.stroke();
+
+    // Draw A and B
+    drawArrow(ctx, origin.x, origin.y, origin.x + vecA.x, origin.y + vecA.y, '#ff6b6b');
+    drawArrow(ctx, origin.x, origin.y, origin.x + vecB.x, origin.y + vecB.y, '#51cf66');
+
+    // Labels
+    ctx.font = 'bold 13px monospace';
+    ctx.fillStyle = '#ff6b6b'; ctx.fillText('A', origin.x + vecA.x + 5, origin.y + vecA.y - 5);
+    ctx.fillStyle = '#51cf66'; ctx.fillText('B', origin.x + vecB.x + 5, origin.y + vecB.y - 5);
+
+    // Result
+    if (mode === 'add') {
+      const rx = vecA.x + vecB.x, ry = vecA.y + vecB.y;
+      drawArrow(ctx, origin.x, origin.y, origin.x + rx, origin.y + ry, '#667eea', 3);
+      // Show component vectors as dashed
+      ctx.setLineDash([4,4]); ctx.strokeStyle = '#ff6b6b44'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(origin.x + vecB.x, origin.y + vecB.y);
+      ctx.lineTo(origin.x + rx, origin.y + ry); ctx.stroke();
+      ctx.strokeStyle = '#51cf6644';
+      ctx.beginPath(); ctx.moveTo(origin.x + vecA.x, origin.y + vecA.y);
+      ctx.lineTo(origin.x + rx, origin.y + ry); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#667eea'; ctx.fillText('A+B', origin.x + rx + 5, origin.y + ry - 5);
+    } else if (mode === 'sub') {
+      const rx = vecA.x - vecB.x, ry = vecA.y - vecB.y;
+      drawArrow(ctx, origin.x + vecB.x, origin.y + vecB.y, origin.x + vecA.x, origin.y + vecA.y, '#667eea', 3);
+      ctx.fillStyle = '#667eea'; ctx.fillText('A-B', origin.x + vecA.x + 5, origin.y + vecA.y + 15);
+    } else if (mode === 'dot') {
+      const dot = vecA.x * (-vecB.y) + (-vecA.y) * (-vecB.y); // screen coords
+      const dotVal = vecA.x * vecB.x + vecA.y * vecB.y;
+      const magA = Math.sqrt(vecA.x ** 2 + vecA.y ** 2);
+      const magB = Math.sqrt(vecB.x ** 2 + vecB.y ** 2);
+      const cosAngle = dotVal / (magA * magB || 1);
+      const angle = Math.acos(Math.max(-1, Math.min(1, cosAngle))) * 180 / Math.PI;
+      // Draw angle arc
+      const aA = Math.atan2(vecA.y, vecA.x), aB = Math.atan2(vecB.y, vecB.x);
+      ctx.beginPath(); ctx.strokeStyle = '#667eea'; ctx.lineWidth = 2;
+      ctx.arc(origin.x, origin.y, 30, Math.min(aA, aB), Math.max(aA, aB));
+      ctx.stroke();
+      ctx.fillStyle = '#667eea'; ctx.font = '12px monospace';
+      ctx.fillText(`${angle.toFixed(1)}°`, origin.x + 35, origin.y - 10);
+      ctx.fillText(`dot = ${dotVal.toFixed(0)}`, 10, 20);
+    } else if (mode === 'cross') {
+      // 2D cross product = scalar
+      const crossVal = vecA.x * vecB.y - vecA.y * vecB.x;
+      ctx.fillStyle = crossVal > 0 ? '#51cf6644' : '#ff6b6b44';
+      ctx.beginPath();
+      ctx.moveTo(origin.x, origin.y);
+      ctx.lineTo(origin.x + vecA.x, origin.y + vecA.y);
+      ctx.lineTo(origin.x + vecA.x + vecB.x, origin.y + vecA.y + vecB.y);
+      ctx.lineTo(origin.x + vecB.x, origin.y + vecB.y);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#667eea'; ctx.font = '12px monospace';
+      ctx.fillText(`cross = ${crossVal.toFixed(0)}`, 10, 20);
+      ctx.fillText(crossVal > 0 ? '(B is left of A)' : '(B is right of A)', 10, 36);
+    }
+
+    // Drag handles
+    [{ v: vecA, c: '#ff6b6b' }, { v: vecB, c: '#51cf66' }].forEach(({ v, c }) => {
+      ctx.beginPath();
+      ctx.arc(origin.x + v.x, origin.y + v.y, 8, 0, Math.PI * 2);
+      ctx.fillStyle = c + '44'; ctx.fill();
+      ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.stroke();
+    });
+  }, [vecA, vecB, mode]);
+
+  const handleMouse = useCallback((e, type) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+
+    if (type === 'down') {
+      const dA = Math.hypot(mx - (origin.x + vecA.x), my - (origin.y + vecA.y));
+      const dB = Math.hypot(mx - (origin.x + vecB.x), my - (origin.y + vecB.y));
+      if (dA < 20) dragging.current = 'A';
+      else if (dB < 20) dragging.current = 'B';
+    } else if (type === 'move' && dragging.current) {
+      const v = { x: mx - origin.x, y: my - origin.y };
+      if (dragging.current === 'A') setVecA(v); else setVecB(v);
+    } else if (type === 'up') {
+      dragging.current = null;
+    }
+  }, [vecA, vecB]);
+
+  const magA = Math.sqrt(vecA.x ** 2 + vecA.y ** 2).toFixed(1);
+  const magB = Math.sqrt(vecB.x ** 2 + vecB.y ** 2).toFixed(1);
+
+  return (
+    <div className="gm-card">
+      <h2><span className="icon">🧭</span> Vector Math</h2>
+      <div className="btn-group">
+        {['add','sub','dot','cross'].map(m => (
+          <button key={m} className={`btn-sm ${mode===m?'active':''}`} onClick={()=>setMode(m)}>
+            {m === 'add' ? 'A + B' : m === 'sub' ? 'A − B' : m === 'dot' ? 'Dot Product' : 'Cross Product'}
+          </button>
+        ))}
+      </div>
+      <div className="flex-canvas">
+        <canvas ref={canvasRef} width={460} height={340}
+          onMouseDown={e=>handleMouse(e,'down')}
+          onMouseMove={e=>handleMouse(e,'move')}
+          onMouseUp={e=>handleMouse(e,'up')}
+          onMouseLeave={e=>handleMouse(e,'up')} />
+        <div className="side">
+          <div className="formula-box">
+            <span className="fn">A</span> <span className="op">=</span> (<span className="val">{vecA.x.toFixed(0)}</span>, <span className="val">{(-vecA.y).toFixed(0)}</span>) |<span className="val">{magA}</span>|<br/>
+            <span className="fn">B</span> <span className="op">=</span> (<span className="val">{vecB.x.toFixed(0)}</span>, <span className="val">{(-vecB.y).toFixed(0)}</span>) |<span className="val">{magB}</span>|<br/><br/>
+            <span className="comment"># Godot equivalents:</span><br/>
+            <span className="fn">v1 + v2</span> <span className="comment"># add</span><br/>
+            <span className="fn">v1 - v2</span> <span className="comment"># subtract</span><br/>
+            <span className="fn">v1.dot(v2)</span> <span className="comment"># dot product</span><br/>
+            <span className="fn">v1.cross(v2)</span> <span className="comment"># cross (3D)</span><br/><br/>
+            <span className="fn">normalize</span>() <span className="op">=</span> v <span className="op">/</span> |v|<br/>
+            <span className="fn">length</span>() <span className="op">=</span> √(x² <span className="op">+</span> y²)<br/>
+            <span className="fn">dot</span> <span className="op">=</span> Ax·Bx <span className="op">+</span> Ay·By<br/>
+            <span className="fn">cross₂ᴅ</span> <span className="op">=</span> Ax·By <span className="op">−</span> Ay·Bx
+          </div>
+          <p style={{color:'#666', fontSize:'0.8rem', marginTop:'0.5rem'}}>Drag the circle handles to move vectors</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ========== PROJECTILE MOTION ==========
+function ProjectileMotion() {
+  const canvasRef = useRef(null);
+  const [velocity, setVelocity] = useState(200);
+  const [angle, setAngle] = useState(45);
+  const [gravity, setGravity] = useState(980);
+  const animRef = useRef(null);
+  const [animT, setAnimT] = useState(0);
+  const [playing, setPlaying] = useState(false);
+
+  const rad = angle * Math.PI / 180;
+  const vx = velocity * Math.cos(rad);
+  const vy = velocity * Math.sin(rad);
+  const totalTime = (2 * vy) / gravity;
+  const maxHeight = (vy * vy) / (2 * gravity);
+  const range = vx * totalTime;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const pad = 40, gw = W - pad * 2, gh = H - pad - 20;
+    const scale = Math.min(gw / (range || 1), gh / (maxHeight || 1)) * 0.85;
+    const baseY = H - 30;
+
+    // Ground
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad, baseY); ctx.lineTo(W - 10, baseY); ctx.stroke();
+
+    // Trajectory curve
+    ctx.beginPath(); ctx.strokeStyle = '#667eea44'; ctx.lineWidth = 2;
+    const steps = 100;
+    for (let i = 0; i <= steps; i++) {
+      const t = (i / steps) * totalTime;
+      const px = pad + vx * t * scale;
+      const py = baseY - (vy * t - 0.5 * gravity * t * t) * scale;
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Max height marker
+    const peakT = vy / gravity;
+    const peakX = pad + vx * peakT * scale;
+    const peakY = baseY - maxHeight * scale;
+    ctx.setLineDash([3,3]); ctx.strokeStyle = '#667eea33';
+    ctx.beginPath(); ctx.moveTo(peakX, baseY); ctx.lineTo(peakX, peakY); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#667eea'; ctx.font = '10px monospace';
+    ctx.fillText(`↕ ${maxHeight.toFixed(1)}`, peakX + 4, peakY + 15);
+
+    // Range marker
+    const endX = pad + range * scale;
+    ctx.fillStyle = '#51cf66'; ctx.font = '10px monospace';
+    ctx.fillText(`${range.toFixed(1)} px`, endX - 30, baseY + 14);
+
+    // Animated dot
+    const ct = animT * totalTime;
+    const dotX = pad + vx * ct * scale;
+    const dotY = baseY - (vy * ct - 0.5 * gravity * ct * ct) * scale;
+    if (dotY <= baseY) {
+      // Trail
+      ctx.beginPath(); ctx.strokeStyle = '#667eea'; ctx.lineWidth = 2.5;
+      for (let i = 0; i <= Math.floor(animT * steps); i++) {
+        const t = (i / steps) * totalTime;
+        const px = pad + vx * t * scale;
+        const py = baseY - (vy * t - 0.5 * gravity * t * t) * scale;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.lineTo(dotX, dotY);
+      ctx.stroke();
+
+      ctx.beginPath(); ctx.arc(dotX, Math.min(dotY, baseY), 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#667eea'; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    }
+
+    // Velocity arrow at origin
+    const arrLen = 50;
+    const ax = pad + arrLen * Math.cos(rad), ay = baseY - arrLen * Math.sin(rad);
+    ctx.beginPath(); ctx.strokeStyle = '#ff6b6b'; ctx.lineWidth = 2;
+    ctx.moveTo(pad, baseY); ctx.lineTo(ax, ay); ctx.stroke();
+    const aa = Math.atan2(-(ay - baseY), ax - pad);
+    ctx.beginPath(); ctx.fillStyle = '#ff6b6b';
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax - 10 * Math.cos(aa - 0.3), ay + 10 * Math.sin(aa - 0.3));
+    ctx.lineTo(ax - 10 * Math.cos(aa + 0.3), ay + 10 * Math.sin(aa + 0.3));
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ff6b6b'; ctx.font = '11px monospace';
+    ctx.fillText(`${angle}°`, pad + 5, baseY - 8);
+  }, [velocity, angle, gravity, animT]);
+
+  useEffect(() => {
+    if (!playing) { cancelAnimationFrame(animRef.current); return; }
+    let start = null;
+    const duration = totalTime * 3000; // slow it down for visibility
+    const tick = (ts) => {
+      if (!start) start = ts;
+      const p = Math.min((ts - start) / (duration || 1), 1);
+      setAnimT(p);
+      if (p < 1) animRef.current = requestAnimationFrame(tick);
+      else setPlaying(false);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [playing, totalTime]);
+
+  return (
+    <div className="gm-card">
+      <h2><span className="icon">🎯</span> Projectile Motion</h2>
+      <div className="flex-canvas">
+        <canvas ref={canvasRef} width={520} height={300} />
+        <div className="side">
+          <div className="formula-box">
+            <span className="fn">x</span>(t) <span className="op">=</span> v₀·cos(θ)·t<br/>
+            <span className="fn">y</span>(t) <span className="op">=</span> v₀·sin(θ)·t <span className="op">−</span> ½g·t²<br/><br/>
+            <span className="fn">range</span> <span className="op">=</span> v₀²·sin(2θ) <span className="op">/</span> g<br/>
+            <span className="fn">max_h</span> <span className="op">=</span> v₀²·sin²(θ) <span className="op">/</span> (2g)<br/>
+            <span className="fn">time</span> <span className="op">=</span> 2·v₀·sin(θ) <span className="op">/</span> g
+          </div>
+          <div className="controls-row">
+            <label>v₀ <input type="number" value={velocity} onChange={e => setVelocity(+e.target.value || 1)} /></label>
+            <label>θ <input type="number" value={angle} min="1" max="89" onChange={e => setAngle(Math.max(1,Math.min(89,+e.target.value)))} /></label>
+            <label>g <input type="number" value={gravity} onChange={e => setGravity(+e.target.value || 1)} /></label>
+          </div>
+          <div className="controls-row">
+            <button className="btn-sm active" onClick={() => { setAnimT(0); setPlaying(true); }}>▶ Launch</button>
+          </div>
+          <div style={{marginTop:'0.5rem'}}>
+            <span className="readout">Range: {range.toFixed(1)}</span>
+            <span className="readout">Height: {maxHeight.toFixed(1)}</span>
+            <span className="readout">Time: {totalTime.toFixed(3)}s</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ========== STEERING & SEEK ==========
+function SteeringSeck() {
+  const canvasRef = useRef(null);
+  const [behavior, setBehavior] = useState('seek');
+  const targetRef = useRef({ x: 350, y: 150 });
+  const agentRef = useRef({ x: 100, y: 200, vx: 0, vy: 0 });
+  const draggingTarget = useRef(false);
+  const animRef = useRef(null);
+  const frameRef = useRef(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const maxSpeed = 3, maxForce = 0.15, arriveRadius = 80;
+
+    const tick = () => {
+      frameRef.current++;
+      const agent = agentRef.current;
+      const target = targetRef.current;
+
+      // Steering calculation
+      let dx = target.x - agent.x, dy = target.y - agent.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+      let desiredSpeed = maxSpeed;
+      if (behavior === 'flee') { dx = -dx; dy = -dy; }
+      else if (behavior === 'arrive') {
+        desiredSpeed = dist < arriveRadius ? maxSpeed * (dist / arriveRadius) : maxSpeed;
+      }
+
+      const dxn = dx / dist, dyn = dy / dist;
+      const desVx = dxn * desiredSpeed, desVy = dyn * desiredSpeed;
+      let steerX = desVx - agent.vx, steerY = desVy - agent.vy;
+      const steerMag = Math.sqrt(steerX * steerX + steerY * steerY);
+      if (steerMag > maxForce) { steerX = steerX / steerMag * maxForce; steerY = steerY / steerMag * maxForce; }
+
+      agent.vx += steerX; agent.vy += steerY;
+      const speed = Math.sqrt(agent.vx ** 2 + agent.vy ** 2);
+      if (speed > maxSpeed) { agent.vx = agent.vx / speed * maxSpeed; agent.vy = agent.vy / speed * maxSpeed; }
+
+      agent.x += agent.vx; agent.y += agent.vy;
+
+      // Wrap
+      if (agent.x < 0) agent.x = W; if (agent.x > W) agent.x = 0;
+      if (agent.y < 0) agent.y = H; if (agent.y > H) agent.y = 0;
+
+      // Draw
+      ctx.clearRect(0, 0, W, H);
+
+      // Arrive radius
+      if (behavior === 'arrive') {
+        ctx.beginPath(); ctx.arc(target.x, target.y, arriveRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = '#667eea33'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+        ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = '#667eea11'; ctx.fill();
+      }
+
+      // Target
+      ctx.beginPath(); ctx.arc(target.x, target.y, 10, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff6b6b44'; ctx.fill();
+      ctx.strokeStyle = '#ff6b6b'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(target.x - 6, target.y); ctx.lineTo(target.x + 6, target.y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(target.x, target.y - 6); ctx.lineTo(target.x, target.y + 6); ctx.stroke();
+
+      // Agent (triangle pointing in velocity direction)
+      const heading = Math.atan2(agent.vy, agent.vx);
+      ctx.save(); ctx.translate(agent.x, agent.y); ctx.rotate(heading);
+      ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-8, -7); ctx.lineTo(-8, 7); ctx.closePath();
+      ctx.fillStyle = '#667eea'; ctx.fill();
+      ctx.strokeStyle = '#aabbff'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.restore();
+
+      // Velocity vector
+      ctx.beginPath(); ctx.strokeStyle = '#51cf6688'; ctx.lineWidth = 1;
+      ctx.moveTo(agent.x, agent.y); ctx.lineTo(agent.x + agent.vx * 15, agent.y + agent.vy * 15);
+      ctx.stroke();
+
+      // Desired vector
+      ctx.beginPath(); ctx.strokeStyle = '#ff6b6b55'; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+      ctx.moveTo(agent.x, agent.y);
+      ctx.lineTo(agent.x + dxn * desiredSpeed * 15, agent.y + dyn * desiredSpeed * 15);
+      ctx.stroke(); ctx.setLineDash([]);
+
+      // Labels
+      ctx.fillStyle = '#555'; ctx.font = '10px monospace';
+      ctx.fillText('drag target ⊕', target.x + 14, target.y - 12);
+
+      animRef.current = requestAnimationFrame(tick);
+    };
+
+    animRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [behavior]);
+
+  const handleMouse = useCallback((e, type) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    if (type === 'down') {
+      const d = Math.hypot(mx - targetRef.current.x, my - targetRef.current.y);
+      if (d < 25) draggingTarget.current = true;
+    } else if (type === 'move' && draggingTarget.current) {
+      targetRef.current = { x: mx, y: my };
+    } else if (type === 'up') {
+      draggingTarget.current = false;
+    }
+  }, []);
+
+  return (
+    <div className="gm-card">
+      <h2><span className="icon">🚗</span> Steering Behaviors</h2>
+      <div className="btn-group">
+        {['seek','flee','arrive'].map(b => (
+          <button key={b} className={`btn-sm ${behavior===b?'active':''}`}
+            onClick={() => { setBehavior(b); agentRef.current = { x: 100, y: 200, vx: 0, vy: 0 }; }}>
+            {b.charAt(0).toUpperCase() + b.slice(1)}
+          </button>
+        ))}
+      </div>
+      <div className="flex-canvas">
+        <canvas ref={canvasRef} width={520} height={300}
+          onMouseDown={e => handleMouse(e, 'down')}
+          onMouseMove={e => handleMouse(e, 'move')}
+          onMouseUp={e => handleMouse(e, 'up')}
+          onMouseLeave={e => handleMouse(e, 'up')} />
+        <div className="side">
+          <div className="formula-box">
+            <span className="fn">desired</span> <span className="op">=</span> normalize(target <span className="op">-</span> pos) <span className="op">*</span> max_speed<br/>
+            <span className="fn">steering</span> <span className="op">=</span> desired <span className="op">-</span> velocity<br/>
+            <span className="fn">steering</span> <span className="op">=</span> clamp(steering, max_force)<br/><br/>
+            <span className="comment"># Arrive: slow when close</span><br/>
+            <span className="fn">speed</span> <span className="op">=</span> max_speed <span className="op">*</span> (dist <span className="op">/</span> radius)<br/><br/>
+            <span className="comment"># Flee: reverse desired</span><br/>
+            <span className="fn">desired</span> <span className="op">=</span> normalize(pos <span className="op">-</span> target) <span className="op">*</span> max_speed
+          </div>
+          <div style={{marginTop:'0.5rem'}}>
+            <div className="legend-item"><span className="legend-dot" style={{background:'#667eea'}}></span> Agent</div>
+            <div className="legend-item"><span className="legend-dot" style={{background:'#51cf66'}}></span> Velocity</div>
+            <div className="legend-item"><span className="legend-dot" style={{background:'#ff6b6b'}}></span> Target / Desired</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ========== DISTANCE FUNCTIONS ==========
+function DistanceFunctions() {
+  const canvasRef = useRef(null);
+  const [pointA, setPointA] = useState({ x: 4, y: 4 });
+  const [pointB, setPointB] = useState({ x: 12, y: 9 });
+  const dragging = useRef(null);
+
+  const cellSize = 28;
+  const cols = 18, rows = 12;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const dx = Math.abs(pointB.x - pointA.x);
+    const dy = Math.abs(pointB.y - pointA.y);
+    const euclidean = Math.sqrt(dx * dx + dy * dy);
+    const manhattan = dx + dy;
+    const chebyshev = Math.max(dx, dy);
+
+    // Color cells for Manhattan path
+    const minX = Math.min(pointA.x, pointB.x), maxX = Math.max(pointA.x, pointB.x);
+    const minY = Math.min(pointA.y, pointB.y), maxY = Math.max(pointA.y, pointB.y);
+
+    // Manhattan highlight
+    for (let x = minX; x <= maxX; x++) {
+      ctx.fillStyle = '#51cf6615';
+      ctx.fillRect(x * cellSize, pointA.y * cellSize, cellSize, cellSize);
+    }
+    for (let y = minY; y <= maxY; y++) {
+      ctx.fillStyle = '#51cf6615';
+      ctx.fillRect(pointB.x * cellSize, y * cellSize, cellSize, cellSize);
+    }
+
+    // Chebyshev highlight
+    const chebySteps = chebyshev;
+    const sdx = pointB.x > pointA.x ? 1 : pointB.x < pointA.x ? -1 : 0;
+    const sdy = pointB.y > pointA.y ? 1 : pointB.y < pointA.y ? -1 : 0;
+    for (let i = 0; i <= chebySteps; i++) {
+      const cx = pointA.x + Math.min(i, dx) * sdx;
+      const cy = pointA.y + Math.min(i, dy) * sdy;
+      ctx.fillStyle = '#c792ea15';
+      ctx.fillRect(cx * cellSize, cy * cellSize, cellSize, cellSize);
+    }
+
+    // Grid
+    ctx.strokeStyle = '#1a1a3a'; ctx.lineWidth = 0.5;
+    for (let x = 0; x <= cols; x++) { ctx.beginPath(); ctx.moveTo(x * cellSize, 0); ctx.lineTo(x * cellSize, rows * cellSize); ctx.stroke(); }
+    for (let y = 0; y <= rows; y++) { ctx.beginPath(); ctx.moveTo(0, y * cellSize); ctx.lineTo(cols * cellSize, y * cellSize); ctx.stroke(); }
+
+    const cx = (x) => x * cellSize + cellSize / 2;
+    const cy = (y) => y * cellSize + cellSize / 2;
+
+    // Euclidean line
+    ctx.beginPath(); ctx.strokeStyle = '#ff6b6b'; ctx.lineWidth = 2.5;
+    ctx.moveTo(cx(pointA.x), cy(pointA.y)); ctx.lineTo(cx(pointB.x), cy(pointB.y));
+    ctx.stroke();
+
+    // Manhattan path
+    ctx.beginPath(); ctx.strokeStyle = '#51cf66'; ctx.lineWidth = 2; ctx.setLineDash([4,3]);
+    ctx.moveTo(cx(pointA.x), cy(pointA.y));
+    ctx.lineTo(cx(pointB.x), cy(pointA.y));
+    ctx.lineTo(cx(pointB.x), cy(pointB.y));
+    ctx.stroke(); ctx.setLineDash([]);
+
+    // Chebyshev path
+    ctx.beginPath(); ctx.strokeStyle = '#c792ea'; ctx.lineWidth = 2; ctx.setLineDash([6,3]);
+    let chx = pointA.x, chy = pointA.y;
+    ctx.moveTo(cx(chx), cy(chy));
+    for (let i = 0; i < chebySteps; i++) {
+      if (chx !== pointB.x) chx += sdx;
+      if (chy !== pointB.y) chy += sdy;
+      ctx.lineTo(cx(chx), cy(chy));
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+
+    // Points
+    [{ p: pointA, label: 'A', c: '#667eea' }, { p: pointB, label: 'B', c: '#f78c6c' }].forEach(({ p, label, c }) => {
+      ctx.beginPath(); ctx.arc(cx(p.x), cy(p.y), 8, 0, Math.PI * 2);
+      ctx.fillStyle = c; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center';
+      ctx.fillText(label, cx(p.x), cy(p.y) + 4); ctx.textAlign = 'left';
+    });
+
+    // Distance labels on canvas
+    ctx.font = '11px monospace';
+    const midX = (cx(pointA.x) + cx(pointB.x)) / 2;
+    const midY = (cy(pointA.y) + cy(pointB.y)) / 2;
+    ctx.fillStyle = '#ff6b6b'; ctx.fillText(euclidean.toFixed(2), midX - 20, midY - 8);
+  }, [pointA, pointB]);
+
+  const handleMouse = useCallback((e, type) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const gx = Math.floor(mx / cellSize), gy = Math.floor(my / cellSize);
+
+    if (type === 'down') {
+      const dA = Math.hypot(mx - (pointA.x * cellSize + cellSize/2), my - (pointA.y * cellSize + cellSize/2));
+      const dB = Math.hypot(mx - (pointB.x * cellSize + cellSize/2), my - (pointB.y * cellSize + cellSize/2));
+      if (dA < 20) dragging.current = 'A';
+      else if (dB < 20) dragging.current = 'B';
+    } else if (type === 'move' && dragging.current) {
+      const clamped = { x: Math.max(0, Math.min(cols - 1, gx)), y: Math.max(0, Math.min(rows - 1, gy)) };
+      if (dragging.current === 'A') setPointA(clamped); else setPointB(clamped);
+    } else if (type === 'up') {
+      dragging.current = null;
+    }
+  }, [pointA, pointB]);
+
+  const dx = Math.abs(pointB.x - pointA.x), dy = Math.abs(pointB.y - pointA.y);
+
+  return (
+    <div className="gm-card">
+      <h2><span className="icon">📐</span> Distance Functions</h2>
+      <div className="flex-canvas">
+        <canvas ref={canvasRef} width={cols * cellSize} height={rows * cellSize}
+          onMouseDown={e => handleMouse(e, 'down')}
+          onMouseMove={e => handleMouse(e, 'move')}
+          onMouseUp={e => handleMouse(e, 'up')}
+          onMouseLeave={e => handleMouse(e, 'up')} />
+        <div className="side">
+          <div className="formula-box">
+            <span style={{color:'#ff6b6b'}}>■</span> <span className="fn">Euclidean</span> <span className="op">=</span> √(dx² <span className="op">+</span> dy²)<br/>
+            &nbsp;&nbsp;<span className="op">=</span> √({dx}² + {dy}²) <span className="op">=</span> <span className="val">{Math.sqrt(dx*dx+dy*dy).toFixed(2)}</span><br/><br/>
+            <span style={{color:'#51cf66'}}>■</span> <span className="fn">Manhattan</span> <span className="op">=</span> |dx| <span className="op">+</span> |dy|<br/>
+            &nbsp;&nbsp;<span className="op">=</span> {dx} + {dy} <span className="op">=</span> <span className="val">{dx + dy}</span><br/><br/>
+            <span style={{color:'#c792ea'}}>■</span> <span className="fn">Chebyshev</span> <span className="op">=</span> max(|dx|, |dy|)<br/>
+            &nbsp;&nbsp;<span className="op">=</span> max({dx}, {dy}) <span className="op">=</span> <span className="val">{Math.max(dx, dy)}</span>
+          </div>
+          <div className="formula-box" style={{marginTop:'0.5rem'}}>
+            <span className="comment"># Godot usage:</span><br/>
+            <span className="fn">pos_a.distance_to</span>(pos_b) <span className="comment"># Euclidean</span><br/>
+            <span className="fn">abs(dx)+abs(dy)</span> <span className="comment"># Manhattan</span><br/>
+            <span className="fn">max(abs(dx),abs(dy))</span> <span className="comment"># Chebyshev</span><br/><br/>
+            <span className="comment"># Use Manhattan/Chebyshev for</span><br/>
+            <span className="comment"># fast distance checks (no sqrt)</span>
+          </div>
+          <p style={{color:'#666', fontSize:'0.8rem', marginTop:'0.5rem'}}>Drag points A and B on the grid</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ========== APP ==========
+function App() {
+  return (
+    <div className="gm-page">
+      <h1 className="gm-title">🎮 Game Dev Math Formulas</h1>
+      <p className="gm-subtitle">Interactive reference for Godot developers — formulas you actually use</p>
+      <LerpEasing />
+      <VectorMath />
+      <ProjectileMotion />
+      <SteeringSeck />
+      <DistanceFunctions />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

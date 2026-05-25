@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Noise Playground — Faultwork Tools</title>
+<link rel="stylesheet" href="shared.css">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+:root {
+  --bg: #0a0a0a;
+  --card: #1a1a2e;
+  --accent: #667eea;
+  --accent2: #764ba2;
+  --text: #e0e0e0;
+  --text-dim: #888;
+  --border: #2a2a4e;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter','Segoe UI',system-ui,sans-serif; min-height:100vh; }
+.app-container { max-width:1400px; margin:0 auto; padding:2rem 1.5rem; }
+h1 { font-size:2.2rem; font-weight:700; margin-bottom:.3rem; background:linear-gradient(135deg,var(--accent),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.subtitle { color:var(--text-dim); margin-bottom:2rem; font-size:.95rem; }
+.main-layout { display:flex; gap:1.5rem; flex-wrap:wrap; }
+.canvas-section { flex:0 0 auto; }
+.controls-section { flex:1; min-width:300px; display:flex; flex-direction:column; gap:1rem; }
+.card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:1.2rem; }
+.card h3 { font-size:.95rem; text-transform:uppercase; letter-spacing:.08em; color:var(--accent); margin-bottom:.8rem; }
+.noise-canvas { border-radius:8px; border:2px solid var(--border); cursor:crosshair; image-rendering:pixelated; }
+.slider-row { display:flex; align-items:center; gap:.8rem; margin-bottom:.7rem; }
+.slider-row label { width:110px; font-size:.82rem; color:var(--text-dim); flex-shrink:0; }
+.slider-row input[type=range] { flex:1; accent-color:var(--accent); height:6px; }
+.slider-row .val { width:55px; text-align:right; font-size:.82rem; font-family:'JetBrains Mono',monospace; color:var(--accent); }
+button { background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border:none; padding:.5rem 1rem; border-radius:8px; cursor:pointer; font-size:.82rem; font-weight:600; transition:all .2s; }
+button:hover { transform:translateY(-1px); box-shadow:0 4px 15px rgba(102,126,234,.3); }
+button.outline { background:transparent; border:1px solid var(--border); color:var(--text-dim); }
+button.outline:hover { border-color:var(--accent); color:var(--accent); }
+button.outline.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.btn-group { display:flex; gap:.4rem; flex-wrap:wrap; }
+.stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:.5rem; }
+.stat-item { background:rgba(102,126,234,.08); border-radius:8px; padding:.5rem .7rem; }
+.stat-item .stat-label { font-size:.7rem; text-transform:uppercase; color:var(--text-dim); }
+.stat-item .stat-value { font-size:1rem; font-weight:700; color:var(--accent); font-family:'JetBrains Mono',monospace; }
+.seed-row { display:flex; align-items:center; gap:.5rem; margin-bottom:.7rem; }
+.seed-row input[type=number] { background:#0a0a0a; border:1px solid var(--border); color:var(--text); padding:.4rem .6rem; border-radius:6px; width:100px; font-family:'JetBrains Mono',monospace; font-size:.85rem; }
+.animate-toggle { display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem; }
+.toggle-switch { position:relative; width:40px; height:22px; cursor:pointer; }
+.toggle-switch input { opacity:0; width:0; height:0; }
+.toggle-slider { position:absolute; inset:0; background:#333; border-radius:11px; transition:.3s; }
+.toggle-slider:before { content:''; position:absolute; width:16px; height:16px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.3s; }
+.toggle-switch input:checked + .toggle-slider { background:var(--accent); }
+.toggle-switch input:checked + .toggle-slider:before { transform:translateX(18px); }
+.export-section { display:flex; gap:.5rem; flex-wrap:wrap; }
+@media(max-width:900px) {
+  .main-layout { flex-direction:column; align-items:center; }
+  .controls-section { min-width:unset; width:100%; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="shared.js"></script>
+<script type="text/babel">
+// ============================================================
+// Improved Perlin Noise Implementation (2D/3D)
+// ============================================================
+class PerlinNoise {
+  constructor(seed = 0) {
+    this.grad3 = [
+      [1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],
+      [1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],
+      [0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]
+    ];
+    this.perm = new Uint8Array(512);
+    this.setSeed(seed);
+  }
+  setSeed(seed) {
+    const p = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) p[i] = i;
+    // Fisher-Yates with seeded PRNG
+    let s = seed | 0;
+    const rng = () => { s = (s * 1664525 + 1013904223) & 0xFFFFFFFF; return (s >>> 0) / 4294967296; };
+    for (let i = 255; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [p[i], p[j]] = [p[j], p[i]];
+    }
+    for (let i = 0; i < 512; i++) this.perm[i] = p[i & 255];
+  }
+  dot3(g, x, y, z) { return g[0]*x + g[1]*y + g[2]*z; }
+  dot2(g, x, y) { return g[0]*x + g[1]*y; }
+  fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+  lerp(a, b, t) { return a + t * (b - a); }
+  noise2D(x, y) {
+    const X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
+    const xf = x - Math.floor(x), yf = y - Math.floor(y);
+    const u = this.fade(xf), v = this.fade(yf);
+    const p = this.perm;
+    const aa = p[p[X] + Y], ab = p[p[X] + Y + 1];
+    const ba = p[p[X + 1] + Y], bb = p[p[X + 1] + Y + 1];
+    const g = this.grad3;
+    return this.lerp(
+      this.lerp(this.dot2(g[aa % 12], xf, yf), this.dot2(g[ba % 12], xf - 1, yf), u),
+      this.lerp(this.dot2(g[ab % 12], xf, yf - 1), this.dot2(g[bb % 12], xf - 1, yf - 1), u),
+      v
+    );
+  }
+  noise3D(x, y, z) {
+    const X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
+    const xf = x - Math.floor(x), yf = y - Math.floor(y), zf = z - Math.floor(z);
+    const u = this.fade(xf), v = this.fade(yf), w = this.fade(zf);
+    const p = this.perm, g = this.grad3;
+    const aaa = p[p[p[X]+Y]+Z], aab = p[p[p[X]+Y]+Z+1];
+    const aba = p[p[p[X]+Y+1]+Z], abb = p[p[p[X]+Y+1]+Z+1];
+    const baa = p[p[p[X+1]+Y]+Z], bab = p[p[p[X+1]+Y]+Z+1];
+    const bba = p[p[p[X+1]+Y+1]+Z], bbb = p[p[p[X+1]+Y+1]+Z+1];
+    return this.lerp(
+      this.lerp(
+        this.lerp(this.dot3(g[aaa%12],xf,yf,zf), this.dot3(g[baa%12],xf-1,yf,zf), u),
+        this.lerp(this.dot3(g[aba%12],xf,yf-1,zf), this.dot3(g[bba%12],xf-1,yf-1,zf), u), v),
+      this.lerp(
+        this.lerp(this.dot3(g[aab%12],xf,yf,zf-1), this.dot3(g[bab%12],xf-1,yf,zf-1), u),
+        this.lerp(this.dot3(g[abb%12],xf,yf-1,zf-1), this.dot3(g[bbb%12],xf-1,yf-1,zf-1), u), v),
+      w
+    );
+  }
+  fbm(x, y, z, octaves, lacunarity, persistence) {
+    let value = 0, amplitude = 1, frequency = 1, maxVal = 0;
+    for (let i = 0; i < octaves; i++) {
+      value += amplitude * this.noise3D(x * frequency, y * frequency, z * frequency);
+      maxVal += amplitude;
+      amplitude *= persistence;
+      frequency *= lacunarity;
+    }
+    return value / maxVal;
+  }
+  ridged(x, y, z, octaves, lacunarity, persistence) {
+    let value = 0, amplitude = 1, frequency = 1, maxVal = 0;
+    for (let i = 0; i < octaves; i++) {
+      let n = this.noise3D(x * frequency, y * frequency, z * frequency);
+      n = 1.0 - Math.abs(n);
+      n = n * n;
+      value += amplitude * n;
+      maxVal += amplitude;
+      amplitude *= persistence;
+      frequency *= lacunarity;
+    }
+    return value / maxVal;
+  }
+}
+
+const perlin = new PerlinNoise(42);
+
+const PRESETS = {
+  Terrain:  { frequency: 0.04, octaves: 6, lacunarity: 2.0, persistence: 0.5, ridged: false },
+  Caves:    { frequency: 0.08, octaves: 3, lacunarity: 2.0, persistence: 0.6, ridged: false },
+  Clouds:   { frequency: 0.03, octaves: 5, lacunarity: 2.2, persistence: 0.45, ridged: false },
+  Islands:  { frequency: 0.025, octaves: 7, lacunarity: 2.0, persistence: 0.5, ridged: false },
+  Ridged:   { frequency: 0.04, octaves: 5, lacunarity: 2.5, persistence: 0.55, ridged: true },
+};
+
+function terrainColor(v) {
+  // v in 0..1
+  if (v < 0.35) return [30, 60, 180];       // deep water
+  if (v < 0.42) return [50, 100, 200];       // shallow water
+  if (v < 0.45) return [210, 200, 150];      // sand
+  if (v < 0.6)  return [50, 160, 50];        // grass
+  if (v < 0.72) return [30, 120, 30];        // forest
+  if (v < 0.82) return [120, 100, 70];       // mountain
+  if (v < 0.9)  return [160, 150, 140];      // rock
+  return [240, 240, 250];                     // snow
+}
+
+function heatColor(v) {
+  // v in 0..1: black -> blue -> cyan -> green -> yellow -> red -> white
+  const stops = [
+    [0, 0, 0, 0], [0.16, 0, 0, 200], [0.33, 0, 180, 220],
+    [0.5, 0, 200, 0], [0.66, 220, 220, 0], [0.83, 240, 50, 0], [1, 255, 255, 255]
+  ];
+  for (let i = 1; i < stops.length; i++) {
+    if (v <= stops[i][0]) {
+      const t = (v - stops[i-1][0]) / (stops[i][0] - stops[i-1][0]);
+      return [
+        Math.round(stops[i-1][1] + t * (stops[i][1] - stops[i-1][1])),
+        Math.round(stops[i-1][2] + t * (stops[i][2] - stops[i-1][2])),
+        Math.round(stops[i-1][3] + t * (stops[i][3] - stops[i-1][3]))
+      ];
+    }
+  }
+  return [255,255,255];
+}
+
+const CANVAS_SIZE = 420;
+
+function App() {
+  const canvasRef = React.useRef(null);
+  const animRef = React.useRef(null);
+  const [frequency, setFrequency] = React.useState(0.04);
+  const [octaves, setOctaves] = React.useState(6);
+  const [lacunarity, setLacunarity] = React.useState(2.0);
+  const [persistence, setPersistence] = React.useState(0.5);
+  const [seed, setSeed] = React.useState(42);
+  const [zOffset, setZOffset] = React.useState(0);
+  const [animate, setAnimate] = React.useState(false);
+  const [colorMode, setColorMode] = React.useState('Grayscale');
+  const [ridged, setRidged] = React.useState(false);
+  const [stats, setStats] = React.useState({ min:0, max:0, avg:0, time:0 });
+  const [activePreset, setActivePreset] = React.useState('Terrain');
+
+  const generate = React.useCallback((zOff) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = CANVAS_SIZE, H = CANVAS_SIZE;
+    const imageData = ctx.createImageData(W, H);
+    const data = imageData.data;
+    const t0 = performance.now();
+    let minV = Infinity, maxV = -Infinity, sum = 0;
+    const z = zOff !== undefined ? zOff : zOffset;
+
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const nx = x * frequency, ny = y * frequency;
+        let v;
+        if (ridged) {
+          v = perlin.ridged(nx, ny, z * 0.3, octaves, lacunarity, persistence);
+        } else {
+          v = perlin.fbm(nx, ny, z * 0.3, octaves, lacunarity, persistence);
+        }
+        // normalize from [-1,1] to [0,1]
+        const nv = ridged ? v : (v * 0.5 + 0.5);
+        const clamped = Math.max(0, Math.min(1, nv));
+        if (clamped < minV) minV = clamped;
+        if (clamped > maxV) maxV = clamped;
+        sum += clamped;
+
+        let r, g, b;
+        if (colorMode === 'Terrain') {
+          [r, g, b] = terrainColor(clamped);
+        } else if (colorMode === 'Heat') {
+          [r, g, b] = heatColor(clamped);
+        } else {
+          const c = Math.round(clamped * 255);
+          r = g = b = c;
+        }
+        const idx = (y * W + x) * 4;
+        data[idx] = r; data[idx+1] = g; data[idx+2] = b; data[idx+3] = 255;
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+    const elapsed = performance.now() - t0;
+    const total = W * H;
+    setStats({ min: minV.toFixed(3), max: maxV.toFixed(3), avg: (sum/total).toFixed(3), time: elapsed.toFixed(1) });
+  }, [frequency, octaves, lacunarity, persistence, zOffset, colorMode, ridged]);
+
+  // Update perlin seed
+  React.useEffect(() => { perlin.setSeed(seed); }, [seed]);
+
+  // Render on param change
+  React.useEffect(() => { generate(); }, [generate, seed]);
+
+  // Animation loop
+  React.useEffect(() => {
+    if (!animate) { if (animRef.current) cancelAnimationFrame(animRef.current); return; }
+    let z = zOffset;
+    const tick = () => {
+      z += 0.02;
+      setZOffset(parseFloat(z.toFixed(2)));
+      generate(z);
+      animRef.current = requestAnimationFrame(tick);
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+  }, [animate]);
+
+  const applyPreset = (name) => {
+    const p = PRESETS[name];
+    setFrequency(p.frequency);
+    setOctaves(p.octaves);
+    setLacunarity(p.lacunarity);
+    setPersistence(p.persistence);
+    setRidged(p.ridged);
+    setActivePreset(name);
+  };
+
+  const randomSeed = () => setSeed(Math.floor(Math.random() * 100000));
+
+  const exportPNG = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.download = `noise_${seed}_${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
+
+  return (
+    <div className="app-container">
+      <h1>🌊 Noise Playground</h1>
+      <p className="subtitle">Interactive Perlin noise visualization — Faultwork terrain tools</p>
+
+      <div className="main-layout">
+        <div className="canvas-section">
+          <canvas ref={canvasRef} width={CANVAS_SIZE} height={CANVAS_SIZE} className="noise-canvas" />
+          <div style={{marginTop:'.8rem'}} className="export-section">
+            <button onClick={exportPNG}>📥 Export PNG</button>
+          </div>
+        </div>
+
+        <div className="controls-section">
+          {/* Presets */}
+          <div className="card">
+            <h3>⚡ Presets</h3>
+            <div className="btn-group">
+              {Object.keys(PRESETS).map(name => (
+                <button key={name} className={`outline ${activePreset===name?'active':''}`} onClick={()=>applyPreset(name)}>{name}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="card">
+            <h3>🎛 Controls</h3>
+            <div className="slider-row">
+              <label>Frequency</label>
+              <input type="range" min="0.01" max="0.2" step="0.001" value={frequency} onChange={e=>setFrequency(+e.target.value)} />
+              <span className="val">{frequency.toFixed(3)}</span>
+            </div>
+            <div className="slider-row">
+              <label>Octaves</label>
+              <input type="range" min="1" max="8" step="1" value={octaves} onChange={e=>setOctaves(+e.target.value)} />
+              <span className="val">{octaves}</span>
+            </div>
+            <div className="slider-row">
+              <label>Lacunarity</label>
+              <input type="range" min="1.0" max="4.0" step="0.1" value={lacunarity} onChange={e=>setLacunarity(+e.target.value)} />
+              <span className="val">{lacunarity.toFixed(1)}</span>
+            </div>
+            <div className="slider-row">
+              <label>Persistence</label>
+              <input type="range" min="0.0" max="1.0" step="0.01" value={persistence} onChange={e=>setPersistence(+e.target.value)} />
+              <span className="val">{persistence.toFixed(2)}</span>
+            </div>
+            <div className="slider-row">
+              <label>Z Offset</label>
+              <input type="range" min="0" max="100" step="0.1" value={zOffset} onChange={e=>{setZOffset(+e.target.value)}} />
+              <span className="val">{zOffset.toFixed(1)}</span>
+            </div>
+            <div className="seed-row">
+              <label style={{width:110,fontSize:'.82rem',color:'var(--text-dim)'}}>Seed</label>
+              <input type="number" value={seed} onChange={e=>setSeed(+e.target.value)} />
+              <button onClick={randomSeed}>🎲 Random</button>
+            </div>
+            <div className="animate-toggle">
+              <label className="toggle-switch">
+                <input type="checkbox" checked={animate} onChange={e=>setAnimate(e.target.checked)} />
+                <span className="toggle-slider"></span>
+              </label>
+              <span style={{fontSize:'.85rem',color:'var(--text-dim)'}}>Auto-animate Z</span>
+            </div>
+          </div>
+
+          {/* Color Modes */}
+          <div className="card">
+            <h3>🎨 Color Mode</h3>
+            <div className="btn-group">
+              {['Grayscale','Terrain','Heat'].map(m => (
+                <button key={m} className={`outline ${colorMode===m?'active':''}`} onClick={()=>setColorMode(m)}>{m}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="card">
+            <h3>📊 Stats</h3>
+            <div className="stats-grid">
+              <div className="stat-item">
+                <div className="stat-label">Min</div>
+                <div className="stat-value">{stats.min}</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-label">Max</div>
+                <div className="stat-value">{stats.max}</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-label">Average</div>
+                <div className="stat-value">{stats.avg}</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-label">Gen Time</div>
+                <div className="stat-value">{stats.time} ms</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

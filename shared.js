@@ -14,6 +14,9 @@
     const NAV_LINKS = [
         { label: 'Home', href: 'index.html' },
         { label: 'Calculators', href: 'calculators.html' },
+        { label: 'Game Math', href: 'gamemath.html' },
+        { label: 'Dev Tools', href: 'devtools.html' },
+        { label: 'Noise Lab', href: 'noise.html' },
     ];
 
     // ── Inject grid canvas ──
