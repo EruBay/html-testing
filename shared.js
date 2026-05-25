@@ -13,10 +13,13 @@
     // ── Nav links (add new pages here) ──
     const NAV_LINKS = [
         { label: 'Home', href: 'index.html' },
-        { label: 'Calculators', href: 'calculators.html' },
-        { label: 'Game Math', href: 'gamemath.html' },
-        { label: 'Dev Tools', href: 'devtools.html' },
+        { label: 'Finance', href: 'finance.html' },
+        { label: 'Game Math', href: 'math.html' },
+        { label: 'Perf Tools', href: 'perf.html' },
         { label: 'Noise Lab', href: 'noise.html' },
+        { label: 'Colors', href: 'colors.html' },
+        { label: 'Shaders', href: 'shaders.html' },
+        { label: 'Bitwise', href: 'bitwise.html' },
     ];
 
     // ── Inject grid canvas ──

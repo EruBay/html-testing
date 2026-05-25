@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Color Toolkit — HTML Testing</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  #root { padding: 2rem; max-width: 1200px; margin: 0 auto; width: 100%; }
+  h1 { text-align: center; margin-bottom: 2rem; font-size: 2rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .card { background: #1a1a2e; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid #2a2a4a; }
+  .card h2 { margin-bottom: 1rem; font-size: 1.3rem; color: #667eea; display: flex; align-items: center; gap: 0.5rem; }
+  .row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-start; }
+  .col { flex: 1; min-width: 200px; }
+  label { display: block; font-size: 0.85rem; color: #888; margin-bottom: 0.3rem; }
+  input[type="color"] { width: 60px; height: 40px; border: none; border-radius: 6px; cursor: pointer; background: none; }
+  input[type="text"], input[type="number"], select {
+    background: #0d0d1a; border: 1px solid #333; color: #e0e0e0; padding: 0.5rem 0.75rem;
+    border-radius: 6px; font-size: 0.9rem; width: 100%;
+  }
+  input[type="range"] { width: 100%; accent-color: #667eea; }
+  button {
+    background: linear-gradient(135deg, #667eea, #764ba2); border: none; color: #fff;
+    padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+    transition: opacity 0.2s;
+  }
+  button:hover { opacity: 0.85; }
+  button.sm { padding: 0.3rem 0.6rem; font-size: 0.75rem; }
+  .copy-val {
+    display: flex; align-items: center; gap: 0.5rem; background: #0d0d1a; border: 1px solid #333;
+    border-radius: 6px; padding: 0.4rem 0.7rem; margin-bottom: 0.4rem; cursor: pointer;
+    transition: border-color 0.2s; font-family: 'Fira Code', monospace, monospace; font-size: 0.85rem;
+  }
+  .copy-val:hover { border-color: #667eea; }
+  .copy-val .lbl { color: #888; min-width: 55px; font-size: 0.75rem; text-transform: uppercase; }
+  .swatch {
+    width: 60px; height: 60px; border-radius: 8px; border: 2px solid #333; cursor: pointer;
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: flex-end;
+    font-size: 0.6rem; padding: 2px; color: #fff; text-shadow: 0 0 3px #000;
+  }
+  .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 700; margin: 0.2rem; }
+  .badge.pass { background: #2ecc40; color: #000; }
+  .badge.fail { background: #ff4136; color: #fff; }
+  .toast {
+    position: fixed; bottom: 2rem; right: 2rem; background: #667eea; color: #fff;
+    padding: 0.7rem 1.2rem; border-radius: 8px; font-size: 0.9rem; z-index: 999;
+    animation: fadeInOut 1.5s ease forwards; pointer-events: none;
+  }
+  @keyframes fadeInOut { 0%{opacity:0;transform:translateY(10px)} 15%{opacity:1;transform:translateY(0)} 85%{opacity:1} 100%{opacity:0} }
+
+  /* Color picker canvas area */
+  .picker-area { position: relative; display: flex; gap: 1rem; align-items: flex-start; }
+  .picker-area canvas { border-radius: 8px; cursor: crosshair; }
+  .hue-strip { width: 30px; height: 256px; border-radius: 6px; cursor: crosshair; }
+  .alpha-strip { width: 20px; height: 256px; border-radius: 6px; cursor: crosshair; }
+  .palette-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+  .gradient-preview { width: 100%; height: 80px; border-radius: 8px; border: 1px solid #333; margin: 1rem 0; }
+  .blend-preview { width: 120px; height: 80px; border-radius: 8px; border: 2px solid #444; display: inline-block; }
+  .stop-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="shared.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ── Color conversion helpers ──
+function clamp(v, lo=0, hi=1) { return Math.max(lo, Math.min(hi, v)); }
+
+function hsvToRgb(h, s, v) {
+  h = ((h % 360) + 360) % 360;
+  const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+  let r, g, b;
+  if (h < 60) [r,g,b] = [c,x,0];
+  else if (h < 120) [r,g,b] = [x,c,0];
+  else if (h < 180) [r,g,b] = [0,c,x];
+  else if (h < 240) [r,g,b] = [0,x,c];
+  else if (h < 300) [r,g,b] = [x,0,c];
+  else [r,g,b] = [c,0,x];
+  return [Math.round((r+m)*255), Math.round((g+m)*255), Math.round((b+m)*255)];
+}
+
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max - min;
+  let h = 0, s = max === 0 ? 0 : d / max, v = max;
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d + 6) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+  }
+  return [h, s, v];
+}
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b), l = (max + min) / 2;
+  let h = 0, s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = ((g - b) / d + 6) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+  }
+  return [h, s, l];
+}
+
+function hexToRgb(hex) {
+  hex = hex.replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  return [parseInt(hex.substring(0,2),16), parseInt(hex.substring(2,4),16), parseInt(hex.substring(4,6),16)];
+}
+
+function rgbToHex(r, g, b) {
+  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+
+function lerpColor(c1, c2, t) {
+  return c1.map((v, i) => Math.round(v + (c2[i] - v) * t));
+}
+
+// ── Toast ──
+let toastTimer;
+function showToast(msg, setToast) {
+  clearTimeout(toastTimer);
+  setToast(msg);
+  toastTimer = setTimeout(() => setToast(''), 1500);
+}
+function copyText(text, setToast) {
+  navigator.clipboard.writeText(text).then(() => showToast(`Copied: ${text}`, setToast));
+}
+
+// ── 1. Color Picker & Converter ──
+function ColorPicker({ color, setColor, setToast }) {
+  const [hsv, setHsv] = useState(() => rgbToHsv(...hexToRgb(color)));
+  const [alpha, setAlpha] = useState(1);
+  const svRef = useRef(null);
+  const hueRef = useRef(null);
+  const draggingSV = useRef(false);
+  const draggingHue = useRef(false);
+
+  const SZ = 256;
+
+  useEffect(() => {
+    const newHsv = rgbToHsv(...hexToRgb(color));
+    setHsv(newHsv);
+  }, [color]);
+
+  const drawSV = useCallback(() => {
+    const c = svRef.current; if (!c) return;
+    const ctx = c.getContext('2d');
+    const [h] = hsv;
+    // White to color (horizontal)
+    for (let x = 0; x < SZ; x++) {
+      const s = x / SZ;
+      for (let y = 0; y < SZ; y++) {
+        const v = 1 - y / SZ;
+        const [r,g,b] = hsvToRgb(h, s, v);
+        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+  }, [hsv[0]]);
+
+  const drawHue = useCallback(() => {
+    const c = hueRef.current; if (!c) return;
+    const ctx = c.getContext('2d');
+    for (let y = 0; y < SZ; y++) {
+      const h = (y / SZ) * 360;
+      const [r,g,b] = hsvToRgb(h, 1, 1);
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(0, y, 30, 1);
+    }
+  }, []);
+
+  useEffect(() => { drawSV(); }, [drawSV]);
+  useEffect(() => { drawHue(); }, [drawHue]);
+
+  const updateFromSV = (e) => {
+    const rect = svRef.current.getBoundingClientRect();
+    const x = clamp((e.clientX - rect.left) / rect.width);
+    const y = clamp((e.clientY - rect.top) / rect.height);
+    const newHsv = [hsv[0], x, 1 - y];
+    setHsv(newHsv);
+    setColor(rgbToHex(...hsvToRgb(...newHsv)));
+  };
+
+  const updateFromHue = (e) => {
+    const rect = hueRef.current.getBoundingClientRect();
+    const y = clamp((e.clientY - rect.top) / rect.height);
+    const newHsv = [y * 360, hsv[1], hsv[2]];
+    setHsv(newHsv);
+    setColor(rgbToHex(...hsvToRgb(...newHsv)));
+  };
+
+  useEffect(() => {
+    const onMove = (e) => {
+      if (draggingSV.current) updateFromSV(e);
+      if (draggingHue.current) updateFromHue(e);
+    };
+    const onUp = () => { draggingSV.current = false; draggingHue.current = false; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+  });
+
+  const rgb = hexToRgb(color);
+  const hsl = rgbToHsl(...rgb);
+  const hsvDisp = rgbToHsv(...rgb);
+
+  const formats = [
+    { lbl: 'HEX', val: color.toUpperCase() },
+    { lbl: 'RGB', val: `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})` },
+    { lbl: 'HSL', val: `hsl(${Math.round(hsl[0])}, ${Math.round(hsl[1]*100)}%, ${Math.round(hsl[2]*100)}%)` },
+    { lbl: 'HSV', val: `hsv(${Math.round(hsvDisp[0])}, ${Math.round(hsvDisp[1]*100)}%, ${Math.round(hsvDisp[2]*100)}%)` },
+    { lbl: 'Godot', val: `Color(${(rgb[0]/255).toFixed(3)}, ${(rgb[1]/255).toFixed(3)}, ${(rgb[2]/255).toFixed(3)}, ${alpha.toFixed(1)})` },
+  ];
+
+  return (
+    <div className="card">
+      <h2>🎨 Color Picker & Converter</h2>
+      <div className="row">
+        <div className="picker-area">
+          <canvas ref={svRef} width={SZ} height={SZ}
+            onMouseDown={(e) => { draggingSV.current = true; updateFromSV(e); }} />
+          <canvas ref={hueRef} width={30} height={SZ} className="hue-strip"
+            onMouseDown={(e) => { draggingHue.current = true; updateFromHue(e); }} />
+          <div style={{ position: 'absolute', left: hsv[1]*SZ - 6, top: (1 - hsv[2])*SZ - 6, width: 12, height: 12, border: '2px solid #fff', borderRadius: '50%', pointerEvents: 'none', boxShadow: '0 0 3px #000' }} />
+        </div>
+        <div className="col">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', marginBottom: '0.7rem' }}>
+            <input type="color" value={color} onChange={e => setColor(e.target.value)} />
+            <input type="text" value={color} onChange={e => { if (/^#[0-9a-f]{6}$/i.test(e.target.value)) setColor(e.target.value); }} style={{ width: 120 }} />
+            <div style={{ width: 50, height: 40, borderRadius: 6, background: color, border: '1px solid #444' }} />
+          </div>
+          <label>Alpha (Godot)</label>
+          <input type="range" min="0" max="1" step="0.1" value={alpha} onChange={e => setAlpha(parseFloat(e.target.value))} />
+          <div style={{ marginTop: '0.7rem' }}>
+            {formats.map(f => (
+              <div key={f.lbl} className="copy-val" onClick={() => copyText(f.val, setToast)}>
+                <span className="lbl">{f.lbl}</span><span>{f.val}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: '0.7rem', color: '#555', marginTop: '0.3rem' }}>Click any value to copy</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 2. Palette Generator ──
+function PaletteGenerator({ color, setToast }) {
+  const [mode, setMode] = useState('complementary');
+  const rgb = hexToRgb(color);
+  const [h, s, l] = rgbToHsl(...rgb);
+
+  function hslToHex(h, s, l) {
+    // hsl to rgb
+    const c = (1 - Math.abs(2*l - 1)) * s;
+    const x = c * (1 - Math.abs((h/60)%2 - 1));
+    const m = l - c/2;
+    let r,g,b;
+    if (h < 60) [r,g,b]=[c,x,0]; else if (h < 120) [r,g,b]=[x,c,0];
+    else if (h < 180) [r,g,b]=[0,c,x]; else if (h < 240) [r,g,b]=[0,x,c];
+    else if (h < 300) [r,g,b]=[x,0,c]; else [r,g,b]=[c,0,x];
+    return rgbToHex(Math.round((r+m)*255), Math.round((g+m)*255), Math.round((b+m)*255));
+  }
+
+  const wrap = (h) => ((h % 360) + 360) % 360;
+
+  const palettes = {
+    complementary: [color, hslToHex(wrap(h+180), s, l)],
+    analogous: [hslToHex(wrap(h-30), s, l), color, hslToHex(wrap(h+30), s, l)],
+    triadic: [color, hslToHex(wrap(h+120), s, l), hslToHex(wrap(h+240), s, l)],
+    'split-complementary': [color, hslToHex(wrap(h+150), s, l), hslToHex(wrap(h+210), s, l)],
+    tetradic: [color, hslToHex(wrap(h+90), s, l), hslToHex(wrap(h+180), s, l), hslToHex(wrap(h+270), s, l)],
+    monochromatic: [0.1, 0.3, 0.5, 0.7, 0.9].map(lv => hslToHex(h, s, lv)),
+  };
+
+  const colors = palettes[mode] || [];
+
+  return (
+    <div className="card">
+      <h2>🎭 Palette Generator</h2>
+      <div className="row" style={{ marginBottom: '1rem' }}>
+        <div className="col">
+          <label>Palette Type</label>
+          <select value={mode} onChange={e => setMode(e.target.value)}>
+            {Object.keys(palettes).map(k => <option key={k} value={k}>{k.charAt(0).toUpperCase() + k.slice(1)}</option>)}
+          </select>
+        </div>
+        <div className="col">
+          <label>Base Color: {color}</label>
+          <div style={{ width: 40, height: 40, background: color, borderRadius: 6, border: '1px solid #444' }} />
+        </div>
+      </div>
+      <div className="palette-row">
+        {colors.map((c, i) => (
+          <div key={i} className="swatch" style={{ background: c, width: 80, height: 80 }}
+            onClick={() => copyText(c, setToast)} title="Click to copy">
+            <span style={{ background: 'rgba(0,0,0,0.5)', padding: '1px 4px', borderRadius: 3, fontSize: '0.7rem' }}>{c}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── 3. Contrast Checker ──
+function ContrastChecker({ setToast }) {
+  const [fg, setFg] = useState('#ffffff');
+  const [bg, setBg] = useState('#1a1a2e');
+
+  function luminance(r, g, b) {
+    const [rs, gs, bs] = [r,g,b].map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+  }
+
+  const fgRgb = hexToRgb(fg), bgRgb = hexToRgb(bg);
+  const l1 = luminance(...fgRgb), l2 = luminance(...bgRgb);
+  const ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+  const aaLarge = ratio >= 3;
+  const aa = ratio >= 4.5;
+  const aaaLarge = ratio >= 4.5;
+  const aaa = ratio >= 7;
+
+  return (
+    <div className="card">
+      <h2>🔍 Contrast Checker</h2>
+      <div className="row">
+        <div className="col">
+          <label>Foreground</label>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input type="color" value={fg} onChange={e => setFg(e.target.value)} />
+            <input type="text" value={fg} style={{ width: 100 }} onChange={e => { if (/^#[0-9a-f]{6}$/i.test(e.target.value)) setFg(e.target.value); }} />
+          </div>
+        </div>
+        <div className="col">
+          <label>Background</label>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input type="color" value={bg} onChange={e => setBg(e.target.value)} />
+            <input type="text" value={bg} style={{ width: 100 }} onChange={e => { if (/^#[0-9a-f]{6}$/i.test(e.target.value)) setBg(e.target.value); }} />
+          </div>
+        </div>
+        <div className="col" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#667eea' }}>{ratio.toFixed(2)}:1</div>
+          <div>
+            <span className={`badge ${aa ? 'pass' : 'fail'}`}>AA Normal {aa ? '✓' : '✗'}</span>
+            <span className={`badge ${aaLarge ? 'pass' : 'fail'}`}>AA Large {aaLarge ? '✓' : '✗'}</span>
+            <span className={`badge ${aaa ? 'pass' : 'fail'}`}>AAA Normal {aaa ? '✓' : '✗'}</span>
+            <span className={`badge ${aaaLarge ? 'pass' : 'fail'}`}>AAA Large {aaaLarge ? '✓' : '✗'}</span>
+          </div>
+        </div>
+      </div>
+      <div style={{ background: bg, borderRadius: 8, padding: '1.5rem', marginTop: '1rem', border: '1px solid #333' }}>
+        <p style={{ color: fg, fontSize: '2rem', fontWeight: 700 }}>Large Text (24px+)</p>
+        <p style={{ color: fg, fontSize: '1rem' }}>Normal body text — The quick brown fox jumps over the lazy dog.</p>
+        <p style={{ color: fg, fontSize: '0.75rem' }}>Small text (12px) — Fine print and captions.</p>
+      </div>
+    </div>
+  );
+}
+
+// ── 4. Gradient Builder ──
+function GradientBuilder({ setToast }) {
+  const [stops, setStops] = useState([
+    { color: '#667eea', pos: 0 },
+    { color: '#764ba2', pos: 100 },
+  ]);
+  const [angle, setAngle] = useState(135);
+  const [type, setType] = useState('linear');
+
+  const updateStop = (i, key, val) => {
+    const ns = [...stops]; ns[i] = { ...ns[i], [key]: val }; setStops(ns);
+  };
+  const addStop = () => { if (stops.length < 5) setStops([...stops, { color: '#ffffff', pos: 50 }]); };
+  const removeStop = (i) => { if (stops.length > 2) setStops(stops.filter((_, j) => j !== i)); };
+
+  const sortedStops = [...stops].sort((a, b) => a.pos - b.pos);
+  const stopsStr = sortedStops.map(s => `${s.color} ${s.pos}%`).join(', ');
+  const cssCode = type === 'linear'
+    ? `linear-gradient(${angle}deg, ${stopsStr})`
+    : `radial-gradient(circle, ${stopsStr})`;
+
+  return (
+    <div className="card">
+      <h2>🌈 Gradient Builder</h2>
+      <div className="row" style={{ marginBottom: '1rem' }}>
+        <div className="col">
+          <label>Type</label>
+          <select value={type} onChange={e => setType(e.target.value)}>
+            <option value="linear">Linear</option>
+            <option value="radial">Radial</option>
+          </select>
+        </div>
+        {type === 'linear' && (
+          <div className="col">
+            <label>Angle: {angle}°</label>
+            <input type="range" min="0" max="360" value={angle} onChange={e => setAngle(parseInt(e.target.value))} />
+          </div>
+        )}
+        <div className="col" style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <button onClick={addStop} disabled={stops.length >= 5}>+ Add Stop</button>
+        </div>
+      </div>
+      {stops.map((s, i) => (
+        <div key={i} className="stop-row">
+          <input type="color" value={s.color} onChange={e => updateStop(i, 'color', e.target.value)} />
+          <input type="text" value={s.color} style={{ width: 90 }} onChange={e => { if (/^#[0-9a-f]{6}$/i.test(e.target.value)) updateStop(i, 'color', e.target.value); }} />
+          <label style={{ margin: 0, minWidth: 30 }}>{s.pos}%</label>
+          <input type="range" min="0" max="100" value={s.pos} onChange={e => updateStop(i, 'pos', parseInt(e.target.value))} style={{ width: 150 }} />
+          {stops.length > 2 && <button className="sm" onClick={() => removeStop(i)} style={{ background: '#ff4136' }}>✗</button>}
+        </div>
+      ))}
+      <div className="gradient-preview" style={{ background: cssCode }} />
+      <div className="copy-val" onClick={() => copyText(cssCode, setToast)}>
+        <span className="lbl">CSS</span><span style={{ wordBreak: 'break-all' }}>{cssCode}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── 5. Color Blender ──
+function ColorBlender({ setToast }) {
+  const [c1, setC1] = useState('#667eea');
+  const [c2, setC2] = useState('#e74c3c');
+  const [t, setT] = useState(50);
+
+  const rgb1 = hexToRgb(c1), rgb2 = hexToRgb(c2);
+  const mixed = lerpColor(rgb1, rgb2, t / 100);
+  const mixHex = rgbToHex(...mixed);
+  const godot1 = rgb1.map(v => (v/255).toFixed(3));
+  const godot2 = rgb2.map(v => (v/255).toFixed(3));
+  const godotResult = mixed.map(v => (v/255).toFixed(3));
+
+  return (
+    <div className="card">
+      <h2>🔀 Color Blender</h2>
+      <div className="row">
+        <div className="col">
+          <label>Color A</label>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input type="color" value={c1} onChange={e => setC1(e.target.value)} />
+            <input type="text" value={c1} style={{ width: 100 }} onChange={e => { if (/^#[0-9a-f]{6}$/i.test(e.target.value)) setC1(e.target.value); }} />
+          </div>
+        </div>
+        <div className="col" style={{ textAlign: 'center' }}>
+          <label>Mix: {t}%</label>
+          <input type="range" min="0" max="100" value={t} onChange={e => setT(parseInt(e.target.value))} />
+        </div>
+        <div className="col">
+          <label>Color B</label>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input type="color" value={c2} onChange={e => setC2(e.target.value)} />
+            <input type="text" value={c2} style={{ width: 100 }} onChange={e => { if (/^#[0-9a-f]{6}$/i.test(e.target.value)) setC2(e.target.value); }} />
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', margin: '1.5rem 0' }}>
+        <div className="blend-preview" style={{ background: c1 }} />
+        <span style={{ fontSize: '2rem' }}>→</span>
+        <div className="blend-preview" style={{ background: mixHex, borderColor: '#667eea' }} />
+        <span style={{ fontSize: '2rem' }}>→</span>
+        <div className="blend-preview" style={{ background: c2 }} />
+      </div>
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        <div className="copy-val" onClick={() => copyText(mixHex, setToast)} style={{ flex: 1 }}>
+          <span className="lbl">HEX</span><span>{mixHex}</span>
+        </div>
+        <div className="copy-val" onClick={() => copyText(`rgb(${mixed.join(', ')})`, setToast)} style={{ flex: 1 }}>
+          <span className="lbl">RGB</span><span>rgb({mixed.join(', ')})</span>
+        </div>
+        <div className="copy-val" onClick={() => copyText(`Color(${godotResult.join(', ')}, 1.0)`, setToast)} style={{ flex: 1 }}>
+          <span className="lbl">Godot</span><span>Color({godotResult.join(', ')}, 1.0)</span>
+        </div>
+      </div>
+      <div style={{ marginTop: '0.7rem', fontSize: '0.8rem', color: '#888' }}>
+        Godot: <code style={{ color: '#667eea' }}>Color({godot1.join(', ')}, 1.0).lerp(Color({godot2.join(', ')}, 1.0), {(t/100).toFixed(2)})</code>
+      </div>
+      {/* Gradient strip showing full blend range */}
+      <div style={{ marginTop: '1rem', height: 20, borderRadius: 6, background: `linear-gradient(to right, ${c1}, ${c2})`, border: '1px solid #333', position: 'relative' }}>
+        <div style={{ position: 'absolute', left: `${t}%`, top: -4, width: 3, height: 28, background: '#fff', borderRadius: 2, transform: 'translateX(-1px)', boxShadow: '0 0 4px rgba(0,0,0,0.5)' }} />
+      </div>
+    </div>
+  );
+}
+
+// ── App ──
+function App() {
+  const [color, setColor] = useState('#667eea');
+  const [toast, setToast] = useState('');
+
+  return (
+    <>
+      <h1>🎨 Color Toolkit</h1>
+      <ColorPicker color={color} setColor={setColor} setToast={setToast} />
+      <PaletteGenerator color={color} setToast={setToast} />
+      <ContrastChecker setToast={setToast} />
+      <GradientBuilder setToast={setToast} />
+      <ColorBlender setToast={setToast} />
+      {toast && <div className="toast">{toast}</div>}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

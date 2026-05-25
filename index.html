@@ -17,12 +17,13 @@
         const { useState, useEffect, useRef } = React;
 
         const pages = [
-            { icon: "🧮", title: "Calculators", desc: "Investment & financial tools", color: "#ec4899", tags: ["compound interest", "ROI", "projections"], href: "calculators.html" },
-            { icon: "📐", title: "Game Math", desc: "Interactive formulas for game dev", color: "#667eea", tags: ["lerp", "vectors", "projectiles", "steering"], href: "gamemath.html" },
-            { icon: "⚙️", title: "Dev Tools", desc: "Performance budgets & VRAM estimates", color: "#10b981", tags: ["FPS budget", "VRAM", "LOD", "chunks", "draw calls"], href: "devtools.html" },
-            { icon: "🌊", title: "Noise Lab", desc: "Interactive Perlin noise playground", color: "#f59e0b", tags: ["perlin", "octaves", "terrain", "procedural"], href: "noise.html" },
-            { icon: "🎨", title: "CSS", desc: "Layouts, animations, gradients", color: "#a855f7", tags: ["flexbox", "grid", "keyframes", "transitions"] },
-            { icon: "⚡", title: "JavaScript", desc: "DOM, APIs, interactive demos", color: "#3b82f6", tags: ["async", "fetch", "events", "modules"] },
+            { icon: "📐", title: "Game Math", desc: "Lerp, vectors, projectiles, steering — formulas you use daily in Godot", color: "#667eea", tags: ["lerp", "vectors", "projectiles", "steering", "distance"], href: "math.html" },
+            { icon: "⚙️", title: "Perf Tools", desc: "Frame budgets, VRAM estimates, LOD & chunk calculators", color: "#10b981", tags: ["FPS budget", "VRAM", "LOD", "chunks", "draw calls"], href: "perf.html" },
+            { icon: "🌊", title: "Noise Lab", desc: "Interactive Perlin noise with presets, color modes & PNG export", color: "#f59e0b", tags: ["perlin", "octaves", "terrain", "procedural"], href: "noise.html" },
+            { icon: "🎨", title: "Colors", desc: "Picker, palette generator, contrast checker, gradient builder", color: "#ec4899", tags: ["picker", "palettes", "WCAG", "gradients", "Godot Color()"], href: "colors.html" },
+            { icon: "✨", title: "Shaders", desc: "SDF visualizer, UV patterns, shader functions & normal maps", color: "#a855f7", tags: ["SDF", "UV", "smoothstep", "GLSL", "normal maps"], href: "shaders.html" },
+            { icon: "🔢", title: "Bitwise", desc: "Bit flags, bitmasks, binary ops & optimization tricks", color: "#14b8a6", tags: ["flags", "masks", "binary", "GDScript", "optimization"], href: "bitwise.html" },
+            { icon: "💰", title: "Finance", desc: "Investment calculator with compound interest projections", color: "#f43f5e", tags: ["compound interest", "ROI", "projections"], href: "finance.html" },
         ];
 
         function Particle({ delay }) {
@@ -141,9 +142,9 @@
             }, [count, target]);
 
             const stats = [
-                { label: "Experiments", value: count, color: "#667eea" },
-                { label: "Technologies", value: count * 3, color: "#10b981" },
-                { label: "Lines of Fun", value: "∞", color: "#f59e0b" },
+                { label: "Tools", value: count, color: "#667eea" },
+                { label: "Interactive Demos", value: count * 4, color: "#10b981" },
+                { label: "Efficiency", value: "∞", color: "#f59e0b" },
             ];
 
             return (
@@ -206,7 +207,7 @@
                         color: "#888", fontSize: "1.1rem", marginBottom: 24,
                         maxWidth: 500, lineHeight: 1.5,
                     }}>
-                        <TypeWriter text="EruBay's playground for HTML, CSS & JS experiments" speed={40} />
+                        <TypeWriter text="Interactive tools for game dev, shaders, performance & more" speed={40} />
                     </p>
 
                     <Stats />

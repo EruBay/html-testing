@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bitwise Operations & Optimization Tricks</title>
+<link rel="stylesheet" href="shared.css">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  .bw-container { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  .bw-title { font-size: 2.2rem; font-weight: 800; text-align: center; margin-bottom: 0.3rem; }
+  .bw-title span { color: #10b981; }
+  .bw-subtitle { text-align: center; color: #888; margin-bottom: 2.5rem; font-size: 1.05rem; }
+
+  .bw-section { background: #1a1a2e; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid #2a2a4a; }
+  .bw-section h2 { color: #10b981; font-size: 1.3rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+
+  .bw-input { background: #0d0d1a; border: 1px solid #333; color: #e0e0e0; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 1rem; font-family: 'Consolas', monospace; outline: none; transition: border-color 0.2s; }
+  .bw-input:focus { border-color: #10b981; }
+  .bw-input-sm { width: 120px; }
+
+  .bit-row { display: flex; flex-wrap: wrap; gap: 1px; margin: 0.8rem 0; }
+  .bit-cell { width: 28px; height: 32px; display: flex; align-items: center; justify-content: center; font-family: 'Consolas', monospace; font-size: 0.85rem; font-weight: 700; cursor: pointer; border-radius: 3px; transition: all 0.15s; user-select: none; }
+  .bit-cell:hover { transform: scale(1.15); }
+  .bit-0 { background: #1a1a2e; color: #555; border: 1px solid #333; }
+  .bit-1 { background: #10b981; color: #000; border: 1px solid #10b981; }
+  .bit-sign { border-color: #ef4444 !important; }
+  .bit-sign.bit-1 { background: #ef4444; }
+  .bit-index { font-size: 0.55rem; color: #555; text-align: center; width: 28px; }
+  .bit-group-sep { width: 6px; }
+
+  .repr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-top: 1rem; }
+  .repr-card { background: #0d0d1a; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid #2a2a4a; }
+  .repr-label { font-size: 0.75rem; color: #10b981; text-transform: uppercase; font-weight: 600; margin-bottom: 0.2rem; }
+  .repr-value { font-family: 'Consolas', monospace; font-size: 1rem; word-break: break-all; }
+
+  .op-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0; flex-wrap: wrap; }
+  .op-label { font-weight: 700; color: #10b981; min-width: 100px; font-family: 'Consolas', monospace; }
+  .op-result { font-family: 'Consolas', monospace; color: #e0e0e0; }
+
+  .bit-changed { background: #f59e0b !important; color: #000 !important; border-color: #f59e0b !important; }
+
+  .flag-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.4rem 0; flex-wrap: wrap; }
+  .flag-toggle { width: 36px; height: 20px; border-radius: 10px; background: #333; cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0; }
+  .flag-toggle.on { background: #10b981; }
+  .flag-toggle::after { content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: left 0.2s; }
+  .flag-toggle.on::after { left: 18px; }
+  .flag-name-input { background: transparent; border: none; border-bottom: 1px solid #444; color: #e0e0e0; font-size: 0.9rem; padding: 0.2rem 0.3rem; width: 130px; outline: none; font-family: 'Consolas', monospace; }
+  .flag-name-input:focus { border-color: #10b981; }
+  .flag-bit { color: #888; font-family: 'Consolas', monospace; font-size: 0.8rem; min-width: 60px; }
+
+  .code-block { background: #0d0d1a; border: 1px solid #2a2a4a; border-radius: 8px; padding: 1rem; font-family: 'Consolas', monospace; font-size: 0.85rem; white-space: pre-wrap; overflow-x: auto; color: #a5b4fc; margin-top: 0.75rem; position: relative; }
+  .copy-btn { position: absolute; top: 0.5rem; right: 0.5rem; background: #10b981; color: #000; border: none; padding: 0.25rem 0.6rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 600; }
+  .copy-btn:hover { background: #34d399; }
+
+  .pow-table { width: 100%; border-collapse: collapse; font-family: 'Consolas', monospace; font-size: 0.82rem; }
+  .pow-table th { text-align: left; color: #10b981; padding: 0.5rem; border-bottom: 1px solid #333; font-size: 0.75rem; text-transform: uppercase; position: sticky; top: 0; background: #1a1a2e; }
+  .pow-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid #1e1e3a; }
+  .pow-table tr.highlight td { background: rgba(16,185,129,0.08); }
+  .pow-table-wrap { max-height: 450px; overflow-y: auto; border-radius: 8px; }
+
+  .trick-card { background: #0d0d1a; border: 1px solid #2a2a4a; border-radius: 10px; padding: 1.2rem; margin-bottom: 1rem; }
+  .trick-card h3 { color: #10b981; font-size: 1rem; margin-bottom: 0.5rem; }
+  .trick-card .trick-code { background: #111; padding: 0.5rem; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 0.85rem; color: #a5b4fc; margin: 0.5rem 0; }
+  .trick-card .trick-explain { color: #999; font-size: 0.85rem; line-height: 1.5; margin-bottom: 0.5rem; }
+  .trick-card .trick-demo { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+  .trick-result { color: #10b981; font-family: 'Consolas', monospace; font-weight: 700; }
+
+  .mask-presets { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+  .mask-preset-btn { background: #0d0d1a; border: 1px solid #333; color: #888; padding: 0.3rem 0.6rem; border-radius: 4px; cursor: pointer; font-family: 'Consolas', monospace; font-size: 0.8rem; transition: all 0.15s; }
+  .mask-preset-btn:hover { border-color: #10b981; color: #10b981; }
+
+  .tab-bar { display: flex; gap: 0.25rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .tab-btn { background: transparent; border: 1px solid #333; color: #888; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: all 0.2s; }
+  .tab-btn.active { background: #10b981; color: #000; border-color: #10b981; font-weight: 700; }
+
+  @media (max-width: 700px) {
+    .bw-container { padding: 1rem; }
+    .bit-cell { width: 22px; height: 26px; font-size: 0.75rem; }
+    .bit-group-sep { width: 4px; }
+    .bit-index { width: 22px; font-size: 0.45rem; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="shared.js"></script>
+<script type="text/babel">
+const { useState, useMemo, useCallback, useRef } = React;
+
+// ─── Utilities ───
+function toBin32(n) {
+  return (n >>> 0).toString(2).padStart(32, '0');
+}
+function toHex(n) {
+  return '0x' + (n >>> 0).toString(16).toUpperCase().padStart(8, '0');
+}
+function toOct(n) {
+  return '0o' + (n >>> 0).toString(8);
+}
+function bitCount(n) {
+  n = n >>> 0;
+  let c = 0;
+  while (n) { c += n & 1; n >>>= 1; }
+  return c;
+}
+
+// ─── BitRow component ───
+function BitRow({ value, onToggle, compare, showIndices = true }) {
+  const bits = toBin32(value);
+  const compareBits = compare !== undefined ? toBin32(compare) : null;
+  const cells = [];
+  const indices = [];
+  for (let i = 0; i < 32; i++) {
+    if (i > 0 && i % 8 === 0) {
+      cells.push(<div key={'sep-' + i} className="bit-group-sep" />);
+      if (showIndices) indices.push(<div key={'si-' + i} className="bit-group-sep" />);
+    }
+    const b = bits[i];
+    const isSign = i === 0;
+    const changed = compareBits && compareBits[i] !== b;
+    cells.push(
+      <div key={i}
+        className={`bit-cell bit-${b} ${isSign ? 'bit-sign' : ''} ${changed ? 'bit-changed' : ''}`}
+        onClick={() => onToggle && onToggle(31 - i)}
+        title={`Bit ${31 - i}`}
+      >{b}</div>
+    );
+    if (showIndices) indices.push(<div key={'i' + i} className="bit-index">{31 - i}</div>);
+  }
+  return (<div>
+    <div className="bit-row">{cells}</div>
+    {showIndices && <div className="bit-row" style={{gap: '1px'}}>{indices}</div>}
+  </div>);
+}
+
+// ─── Section 1: Binary Visualizer ───
+function BinaryVisualizer() {
+  const [value, setValue] = useState(42);
+  const handleInput = (e) => {
+    const v = parseInt(e.target.value, 10);
+    setValue(isNaN(v) ? 0 : v);
+  };
+  const toggle = (bit) => {
+    setValue(prev => (prev ^ (1 << bit)) | 0);
+  };
+  return (
+    <div className="bw-section">
+      <h2>🔢 Binary Visualizer</h2>
+      <div style={{display:'flex',alignItems:'center',gap:'0.75rem',flexWrap:'wrap'}}>
+        <label style={{color:'#888',fontSize:'0.85rem'}}>Decimal:</label>
+        <input className="bw-input bw-input-sm" type="number" value={value} onChange={handleInput} />
+        <span style={{color:'#555',fontSize:'0.8rem'}}>Click bits to toggle</span>
+      </div>
+      <BitRow value={value} onToggle={toggle} />
+      <div className="repr-grid">
+        <div className="repr-card"><div className="repr-label">Decimal</div><div className="repr-value">{value}</div></div>
+        <div className="repr-card"><div className="repr-label">Unsigned</div><div className="repr-value">{value >>> 0}</div></div>
+        <div className="repr-card"><div className="repr-label">Hex</div><div className="repr-value">{toHex(value)}</div></div>
+        <div className="repr-card"><div className="repr-label">Octal</div><div className="repr-value">{toOct(value)}</div></div>
+        <div className="repr-card"><div className="repr-label">Binary</div><div className="repr-value" style={{fontSize:'0.75rem'}}>{toBin32(value)}</div></div>
+        <div className="repr-card"><div className="repr-label">Set Bits</div><div className="repr-value">{bitCount(value)}</div></div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Section 2: Bitwise Operations Calculator ───
+function BitwiseCalc() {
+  const [a, setA] = useState(170);
+  const [b, setB] = useState(85);
+  const [shift, setShift] = useState(2);
+  const ops = useMemo(() => [
+    { label: 'A AND B', sym: '&', result: (a & b) | 0 },
+    { label: 'A OR  B', sym: '|', result: (a | b) | 0 },
+    { label: 'A XOR B', sym: '^', result: (a ^ b) | 0 },
+    { label: 'NOT A',   sym: '~', result: (~a) | 0 },
+    { label: `A << ${shift}`, sym: '<<', result: (a << shift) | 0 },
+    { label: `A >> ${shift}`, sym: '>>', result: (a >> shift) | 0 },
+    { label: `A >>> ${shift}`, sym: '>>>', result: (a >>> shift) | 0 },
+  ], [a, b, shift]);
+
+  return (
+    <div className="bw-section">
+      <h2>⚙️ Bitwise Operations Calculator</h2>
+      <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',alignItems:'center',marginBottom:'0.75rem'}}>
+        <div>
+          <label style={{color:'#888',fontSize:'0.8rem',display:'block'}}>A (decimal)</label>
+          <input className="bw-input bw-input-sm" type="number" value={a} onChange={e => setA(parseInt(e.target.value)||0)} />
+        </div>
+        <div>
+          <label style={{color:'#888',fontSize:'0.8rem',display:'block'}}>B (decimal)</label>
+          <input className="bw-input bw-input-sm" type="number" value={b} onChange={e => setB(parseInt(e.target.value)||0)} />
+        </div>
+        <div>
+          <label style={{color:'#888',fontSize:'0.8rem',display:'block'}}>Shift amount</label>
+          <input className="bw-input" type="number" value={shift} min="0" max="31" style={{width:'60px'}} onChange={e => setShift(Math.max(0,Math.min(31,parseInt(e.target.value)||0)))} />
+        </div>
+      </div>
+      <div style={{fontSize:'0.8rem',color:'#666',marginBottom:'0.3rem'}}>A:</div>
+      <BitRow value={a} showIndices={false} />
+      <div style={{fontSize:'0.8rem',color:'#666',marginBottom:'0.3rem'}}>B:</div>
+      <BitRow value={b} showIndices={false} />
+      <div style={{borderTop:'1px solid #2a2a4a',marginTop:'0.5rem',paddingTop:'0.5rem'}}>
+        {ops.map((op, i) => (
+          <div key={i}>
+            <div className="op-row">
+              <span className="op-label">{op.label}</span>
+              <span className="op-result">= {op.result} ({toHex(op.result)})</span>
+            </div>
+            <BitRow value={op.result} compare={a} showIndices={false} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Section 3: Bit Flags Editor ───
+function BitFlagsEditor() {
+  const defaultFlags = ['Collision','Render','Physics','Audio','Input','Network','UI','Debug'];
+  const [names, setNames] = useState(defaultFlags);
+  const [enabled, setEnabled] = useState(Array(8).fill(false));
+
+  const combined = enabled.reduce((acc, on, i) => on ? acc | (1 << i) : acc, 0);
+
+  const toggleFlag = (i) => {
+    setEnabled(prev => { const n = [...prev]; n[i] = !n[i]; return n; });
+  };
+  const setName = (i, v) => {
+    setNames(prev => { const n = [...prev]; n[i] = v; return n; });
+  };
+
+  const gdscript = useMemo(() => {
+    let code = '# Flag constants\n';
+    names.forEach((n, i) => {
+      const sn = n.replace(/\s+/g, '_').toUpperCase() || `FLAG_${i}`;
+      code += `const ${sn} = ${1 << i}  # Bit ${i}, value ${1 << i}\n`;
+    });
+    code += `\n# Combined value: ${combined}\nvar flags = ${combined}\n\n`;
+    code += '# Check flag\n';
+    const firstName = (names[0] || 'FLAG_0').replace(/\s+/g, '_').toUpperCase();
+    code += `if flags & ${firstName}:\n    print("${firstName} is set")\n\n`;
+    code += '# Set flag\n';
+    code += `flags = flags | ${firstName}\n\n`;
+    code += '# Clear flag\n';
+    code += `flags = flags & ~${firstName}\n\n`;
+    code += '# Toggle flag\n';
+    code += `flags = flags ^ ${firstName}\n`;
+    return code;
+  }, [names, enabled, combined]);
+
+  const copyCode = () => { navigator.clipboard.writeText(gdscript); };
+
+  return (
+    <div className="bw-section">
+      <h2>🚩 Bit Flags Editor</h2>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1.5rem'}}>
+        <div>
+          {names.map((name, i) => (
+            <div key={i} className="flag-row">
+              <div className={`flag-toggle ${enabled[i] ? 'on' : ''}`} onClick={() => toggleFlag(i)} />
+              <input className="flag-name-input" value={name} onChange={e => setName(i, e.target.value)} />
+              <span className="flag-bit">1&lt;&lt;{i} = {1 << i}</span>
+              <span style={{color: enabled[i] ? '#10b981' : '#444', fontFamily:'Consolas', fontSize:'0.8rem'}}>
+                {combined} &amp; {1<<i} = {combined & (1<<i) ? '✓' : '0'}
+              </span>
+            </div>
+          ))}
+          <div style={{marginTop:'1rem',padding:'0.6rem',background:'#0d0d1a',borderRadius:'8px',border:'1px solid #2a2a4a'}}>
+            <span style={{color:'#888',fontSize:'0.8rem'}}>Combined value: </span>
+            <span style={{color:'#10b981',fontFamily:'Consolas',fontWeight:700,fontSize:'1.1rem'}}>{combined}</span>
+            <span style={{color:'#666',fontFamily:'Consolas',fontSize:'0.85rem',marginLeft:'0.5rem'}}>({toHex(combined)})</span>
+          </div>
+        </div>
+        <div>
+          <div style={{color:'#888',fontSize:'0.8rem',marginBottom:'0.3rem'}}>Generated GDScript:</div>
+          <div className="code-block">
+            <button className="copy-btn" onClick={copyCode}>Copy</button>
+            {gdscript}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Section 4: Power of 2 Reference ───
+function PowerOf2Reference() {
+  const gameDevPowers = new Set([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,16,20,24]);
+  const commonUses = {
+    0: 'bool flag',
+    1: 'toggle/pair',
+    2: 'small enum',
+    3: 'byte half',
+    4: '16 states, tile size',
+    5: '32 states, small tile',
+    6: '64 states',
+    7: '128 byte block',
+    8: '256 colors, byte max+1',
+    9: '512 texture',
+    10: '1024 texture, 1KB',
+    11: '2048 texture',
+    12: '4096 texture, page size',
+    13: '8192 large texture',
+    14: '16K buffer',
+    15: '32K buffer',
+    16: 'uint16 max+1, 64K',
+    17: '128K',
+    18: '256K chunk',
+    19: '512K',
+    20: '1MB',
+    21: '2MB huge page',
+    22: '4MB',
+    23: '8MB',
+    24: '16M colors (24-bit)',
+    25: '32M',
+    26: '64M',
+    27: '128M',
+    28: '256M',
+    29: '512M',
+    30: '1GB',
+    31: '2GB, int32 sign',
+  };
+  return (
+    <div className="bw-section">
+      <h2>📊 Power of 2 Reference</h2>
+      <div className="pow-table-wrap">
+        <table className="pow-table">
+          <thead><tr><th>2^n</th><th>Decimal</th><th>Hex</th><th>Binary</th><th>Common Use</th></tr></thead>
+          <tbody>
+            {Array.from({length:32},(_,i) => {
+              const val = 2**i >>> 0;
+              const hl = gameDevPowers.has(i);
+              return (
+                <tr key={i} className={hl ? 'highlight' : ''}>
+                  <td>2<sup>{i}</sup></td>
+                  <td>{val.toLocaleString()}</td>
+                  <td>{'0x' + val.toString(16).toUpperCase()}</td>
+                  <td style={{fontSize:'0.7rem'}}>{val.toString(2)}</td>
+                  <td style={{color:'#999',fontSize:'0.8rem'}}>{commonUses[i]}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Section 5: Optimization Tricks ───
+function OptimizationTricks() {
+  const [vals, setVals] = useState({pow:16, mul:7, mulShift:3, div:24, divShift:2, swap1:42, swap2:99, cnt:255});
+  const upd = (k, v) => setVals(prev => ({...prev, [k]: parseInt(v)||0}));
+
+  const isPow2 = (n) => n > 0 && (n & (n - 1)) === 0;
+  const nextPow2 = (n) => {
+    if (n <= 0) return 1;
+    n = (n >>> 0) - 1;
+    n |= n >> 1; n |= n >> 2; n |= n >> 4; n |= n >> 8; n |= n >> 16;
+    return (n + 1) >>> 0;
+  };
+
+  const tricks = [
+    {
+      title: 'Is Power of 2?',
+      code: 'n > 0 && (n & (n - 1)) === 0',
+      explain: 'A power of 2 has exactly one bit set. Subtracting 1 flips all lower bits. AND-ing gives 0 only if exactly one bit was set.',
+      demo: () => (
+        <div className="trick-demo">
+          <span style={{color:'#888'}}>n =</span>
+          <input className="bw-input" style={{width:'80px'}} type="number" value={vals.pow} onChange={e=>upd('pow',e.target.value)} />
+          <span className="trick-result">{isPow2(vals.pow) ? '✓ Yes' : '✗ No'}</span>
+          <span style={{color:'#666',fontSize:'0.8rem'}}>({vals.pow} & {vals.pow-1} = {(vals.pow & (vals.pow-1))})</span>
+        </div>
+      )
+    },
+    {
+      title: 'Next Power of 2',
+      code: 'n--; n|=n>>1; n|=n>>2; n|=n>>4; n|=n>>8; n|=n>>16; n+1',
+      explain: 'Fills all bits below the highest set bit, then adds 1. This rounds up to the nearest power of 2.',
+      demo: () => {
+        const np = nextPow2(vals.pow);
+        return (
+          <div className="trick-demo">
+            <span style={{color:'#888'}}>n =</span>
+            <input className="bw-input" style={{width:'80px'}} type="number" value={vals.pow} onChange={e=>upd('pow',e.target.value)} />
+            <span className="trick-result">→ {np}</span>
+          </div>
+        );
+      }
+    },
+    {
+      title: 'Fast Multiply by Power of 2',
+      code: 'n << k  // equivalent to n * 2^k',
+      explain: 'Left shift by k is the same as multiplying by 2^k. Much faster than general multiplication.',
+      demo: () => (
+        <div className="trick-demo">
+          <input className="bw-input" style={{width:'70px'}} type="number" value={vals.mul} onChange={e=>upd('mul',e.target.value)} />
+          <span style={{color:'#888'}}>&lt;&lt;</span>
+          <input className="bw-input" style={{width:'50px'}} type="number" value={vals.mulShift} min="0" max="31" onChange={e=>upd('mulShift',e.target.value)} />
+          <span className="trick-result">= {(vals.mul << vals.mulShift)|0}</span>
+          <span style={{color:'#666',fontSize:'0.8rem'}}>({vals.mul} × {Math.pow(2,vals.mulShift)})</span>
+        </div>
+      )
+    },
+    {
+      title: 'Fast Divide by Power of 2',
+      code: 'n >> k  // equivalent to n / 2^k (integer)',
+      explain: 'Right shift by k is the same as integer division by 2^k. Sign-extending for negative numbers.',
+      demo: () => (
+        <div className="trick-demo">
+          <input className="bw-input" style={{width:'70px'}} type="number" value={vals.div} onChange={e=>upd('div',e.target.value)} />
+          <span style={{color:'#888'}}>&gt;&gt;</span>
+          <input className="bw-input" style={{width:'50px'}} type="number" value={vals.divShift} min="0" max="31" onChange={e=>upd('divShift',e.target.value)} />
+          <span className="trick-result">= {(vals.div >> vals.divShift)|0}</span>
+          <span style={{color:'#666',fontSize:'0.8rem'}}>({vals.div} ÷ {Math.pow(2,vals.divShift)})</span>
+        </div>
+      )
+    },
+    {
+      title: 'Bit Count (Population Count)',
+      code: 'while(n) { count += n & 1; n >>= 1; }',
+      explain: 'Counts set bits by checking the lowest bit and shifting right. Also known as Hamming weight / popcount.',
+      demo: () => (
+        <div className="trick-demo">
+          <span style={{color:'#888'}}>n =</span>
+          <input className="bw-input" style={{width:'80px'}} type="number" value={vals.cnt} onChange={e=>upd('cnt',e.target.value)} />
+          <span className="trick-result">popcount = {bitCount(vals.cnt)}</span>
+          <span style={{color:'#666',fontSize:'0.8rem'}}>({toBin32(vals.cnt).replace(/^0+/,'') || '0'})</span>
+        </div>
+      )
+    },
+    {
+      title: 'Swap Without Temp Variable',
+      code: 'a ^= b; b ^= a; a ^= b;',
+      explain: 'XOR swap works because XOR is its own inverse. a^b^b = a. Three XOR operations swap two values without a temporary.',
+      demo: () => {
+        const sa = vals.swap1 ^ vals.swap2 ^ vals.swap2; // stays swap1
+        const sb = vals.swap1 ^ vals.swap2 ^ vals.swap1; // stays swap2
+        // Show what the swap produces
+        return (
+          <div className="trick-demo">
+            <span style={{color:'#888'}}>a =</span>
+            <input className="bw-input" style={{width:'70px'}} type="number" value={vals.swap1} onChange={e=>upd('swap1',e.target.value)} />
+            <span style={{color:'#888'}}>b =</span>
+            <input className="bw-input" style={{width:'70px'}} type="number" value={vals.swap2} onChange={e=>upd('swap2',e.target.value)} />
+            <span className="trick-result">→ a={vals.swap2}, b={vals.swap1}</span>
+          </div>
+        );
+      }
+    },
+  ];
+
+  return (
+    <div className="bw-section">
+      <h2>⚡ Optimization Tricks</h2>
+      {tricks.map((t, i) => (
+        <div key={i} className="trick-card">
+          <h3>{t.title}</h3>
+          <div className="trick-code">{t.code}</div>
+          <div className="trick-explain">{t.explain}</div>
+          {t.demo()}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Section 6: Bitmask Builder ───
+function BitmaskBuilder() {
+  const [mask, setMask] = useState(0xFF);
+
+  const toggle = (bit) => setMask(prev => (prev ^ (1 << bit)) | 0);
+
+  const presets = [
+    { label: '0x00', val: 0x00 },
+    { label: '0xFF', val: 0xFF },
+    { label: '0xFF00', val: 0xFF00 },
+    { label: '0xFFFF', val: 0xFFFF },
+    { label: '0xFF0000', val: 0xFF0000 },
+    { label: '0xFF000000', val: 0xFF000000 | 0 },
+    { label: '0x0F0F0F0F', val: 0x0F0F0F0F },
+    { label: '0xF0F0F0F0', val: 0xF0F0F0F0 | 0 },
+    { label: '0x55555555', val: 0x55555555 },
+    { label: '0xAAAAAAAA', val: 0xAAAAAAAA | 0 },
+    { label: '0x7FFFFFFF', val: 0x7FFFFFFF },
+    { label: '0xFFFFFFFF', val: 0xFFFFFFFF | 0 },
+    { label: 'Low nibble', val: 0x0F },
+    { label: 'High nibble', val: 0xF0 },
+  ];
+
+  return (
+    <div className="bw-section">
+      <h2>🔧 Bitmask Builder</h2>
+      <div className="mask-presets">
+        {presets.map((p, i) => (
+          <button key={i} className="mask-preset-btn" onClick={() => setMask(p.val)}>{p.label}</button>
+        ))}
+      </div>
+      <BitRow value={mask} onToggle={toggle} />
+      <div className="repr-grid">
+        <div className="repr-card"><div className="repr-label">Decimal (signed)</div><div className="repr-value">{mask | 0}</div></div>
+        <div className="repr-card"><div className="repr-label">Decimal (unsigned)</div><div className="repr-value">{mask >>> 0}</div></div>
+        <div className="repr-card"><div className="repr-label">Hex</div><div className="repr-value">{toHex(mask)}</div></div>
+        <div className="repr-card"><div className="repr-label">Binary</div><div className="repr-value" style={{fontSize:'0.75rem'}}>{toBin32(mask)}</div></div>
+        <div className="repr-card"><div className="repr-label">Set Bits</div><div className="repr-value">{bitCount(mask)} / 32</div></div>
+        <div className="repr-card"><div className="repr-label">C / GDScript</div><div className="repr-value" style={{fontSize:'0.8rem'}}>{toHex(mask)}</div></div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main App ───
+function App() {
+  const [activeTab, setActiveTab] = useState(0);
+  const tabs = ['Visualizer','Calculator','Flags','Powers of 2','Tricks','Bitmask'];
+  const panels = [BinaryVisualizer, BitwiseCalc, BitFlagsEditor, PowerOf2Reference, OptimizationTricks, BitmaskBuilder];
+  const Panel = panels[activeTab];
+
+  return (
+    <div className="bw-container">
+      <div className="bw-title">Bitwise Operations <span>&</span> Optimization</div>
+      <div className="bw-subtitle">Interactive binary manipulation tools for game developers</div>
+      <div className="tab-bar">
+        {tabs.map((t, i) => (
+          <button key={i} className={`tab-btn ${activeTab === i ? 'active' : ''}`} onClick={() => setActiveTab(i)}>{t}</button>
+        ))}
+      </div>
+      <Panel />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

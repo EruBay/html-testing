@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shader Math Visual Reference</title>
+<link rel="stylesheet" href="shared.css">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  .shader-page { padding: 2rem; max-width: 1400px; margin: 0 auto; }
+  .shader-page h1 { font-size: 2.2rem; font-weight: 800; margin-bottom: 0.3rem; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .shader-page .subtitle { color: #888; margin-bottom: 2rem; font-size: 1.05rem; }
+  .section { margin-bottom: 3rem; }
+  .section h2 { font-size: 1.5rem; color: #667eea; margin-bottom: 1rem; border-bottom: 1px solid #222; padding-bottom: 0.5rem; }
+  .card { background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 12px; padding: 1.2rem; margin-bottom: 1rem; }
+  .card-row { display: flex; gap: 1.2rem; flex-wrap: wrap; }
+  .card-row .card { flex: 1; min-width: 300px; }
+  canvas.viz { border-radius: 8px; background: #000; display: block; image-rendering: pixelated; }
+  .controls { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-top: 0.8rem; align-items: center; }
+  .control-group { display: flex; flex-direction: column; gap: 0.2rem; }
+  .control-group label { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+  .control-group input[type="range"] { width: 140px; accent-color: #667eea; }
+  .control-group .val { font-size: 0.75rem; color: #667eea; font-family: monospace; }
+  .code-block { background: #0d0d1a; border: 1px solid #2a2a4a; border-radius: 8px; padding: 0.8rem 1rem; font-family: 'Fira Code', 'Consolas', monospace; font-size: 0.8rem; line-height: 1.5; overflow-x: auto; margin-top: 0.8rem; white-space: pre; }
+  .code-block .kw { color: #c792ea; }
+  .code-block .fn { color: #82aaff; }
+  .code-block .num { color: #f78c6c; }
+  .code-block .type { color: #ffcb6b; }
+  .code-block .cm { color: #546e7a; }
+  .code-block .str { color: #c3e88d; }
+  .tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+  .tab { padding: 0.4rem 1rem; border-radius: 6px; background: #111; border: 1px solid #333; cursor: pointer; color: #888; font-size: 0.85rem; transition: all 0.2s; }
+  .tab.active { background: #667eea33; border-color: #667eea; color: #667eea; }
+  .tab:hover { color: #e0e0e0; }
+  .flex-row { display: flex; gap: 1.2rem; align-items: flex-start; flex-wrap: wrap; }
+  .flex-col { display: flex; flex-direction: column; gap: 0.5rem; }
+  .color-preview { width: 60px; height: 60px; border-radius: 8px; border: 2px solid #333; }
+  .input-row { display: flex; gap: 0.5rem; align-items: center; }
+  .input-row label { font-size: 0.8rem; color: #888; min-width: 20px; }
+  .input-row input[type="range"] { flex: 1; accent-color: #667eea; }
+  .input-row .val { font-size: 0.75rem; color: #667eea; font-family: monospace; min-width: 40px; }
+  .normal-map-area { position: relative; display: inline-block; cursor: crosshair; }
+  .light-indicator { position: absolute; width: 20px; height: 20px; border-radius: 50%; background: #ffeb3b; border: 2px solid #fff; transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 15px #ffeb3b88; }
+  select { background: #111; color: #e0e0e0; border: 1px solid #333; border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.85rem; }
+  button.upload-btn { background: #667eea33; border: 1px solid #667eea; color: #667eea; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+  button.upload-btn:hover { background: #667eea55; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="shared.js"></script>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ── Utility: GLSL Syntax Highlighting ──
+function GlslCode({ code }) {
+  const highlighted = code
+    .replace(/\/\/.*/g, m => `<span class="cm">${m}</span>`)
+    .replace(/\b(float|vec2|vec3|vec4|int|void|uniform|varying|in|out|mat3|mat4|sampler2D|bool)\b/g, '<span class="type">$1</span>')
+    .replace(/\b(if|else|for|return|const|struct)\b/g, '<span class="kw">$1</span>')
+    .replace(/\b(abs|length|dot|normalize|clamp|mix|step|smoothstep|min|max|floor|fract|mod|sin|cos|atan|sqrt|pow|sign|cross|reflect|texture)\b/g, '<span class="fn">$1</span>')
+    .replace(/\b(\d+\.\d+|\d+\.|\.\d+)\b/g, '<span class="num">$1</span>');
+  return <div className="code-block" dangerouslySetInnerHTML={{ __html: highlighted }} />;
+}
+
+// ── Slider Control ──
+function Slider({ label, value, min, max, step, onChange }) {
+  return (
+    <div className="control-group">
+      <label>{label}</label>
+      <input type="range" min={min} max={max} step={step || 0.01} value={value} onChange={e => onChange(parseFloat(e.target.value))} />
+      <span className="val">{typeof value === 'number' ? value.toFixed(2) : value}</span>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// 1. SDF VISUALIZER
+// ═══════════════════════════════════════
+const SDF_TYPES = [
+  { name: 'Circle', key: 'circle' },
+  { name: 'Box', key: 'box' },
+  { name: 'Rounded Box', key: 'roundedBox' },
+  { name: 'Line Segment', key: 'line' },
+  { name: 'Triangle', key: 'triangle' },
+];
+
+const SDF_GLSL = {
+  circle: `float sdCircle(vec2 p, float r) {
+  return length(p) - r;
+}`,
+  box: `float sdBox(vec2 p, vec2 b) {
+  vec2 d = abs(p) - b;
+  return length(max(d, 0.0))
+       + min(max(d.x, d.y), 0.0);
+}`,
+  roundedBox: `float sdRoundedBox(vec2 p, vec2 b, float r) {
+  vec2 d = abs(p) - b + r;
+  return length(max(d, 0.0))
+       + min(max(d.x, d.y), 0.0) - r;
+}`,
+  line: `float sdSegment(vec2 p, vec2 a, vec2 b) {
+  vec2 pa = p - a, ba = b - a;
+  float h = clamp(dot(pa,ba)/dot(ba,ba), 0.0, 1.0);
+  return length(pa - ba*h);
+}`,
+  triangle: `float sdTriangle(vec2 p, vec2 p0, vec2 p1, vec2 p2) {
+  vec2 e0=p1-p0, e1=p2-p1, e2=p0-p2;
+  vec2 v0=p-p0,  v1=p-p1,  v2=p-p2;
+  vec2 pq0=v0-e0*clamp(dot(v0,e0)/dot(e0,e0),0.,1.);
+  vec2 pq1=v1-e1*clamp(dot(v1,e1)/dot(e1,e1),0.,1.);
+  vec2 pq2=v2-e2*clamp(dot(v2,e2)/dot(e2,e2),0.,1.);
+  float s = sign(e0.x*e2.y-e0.y*e2.x);
+  vec2 d = min(min(
+    vec2(dot(pq0,pq0),s*(v0.x*e0.y-v0.y*e0.x)),
+    vec2(dot(pq1,pq1),s*(v1.x*e1.y-v1.y*e1.x))),
+    vec2(dot(pq2,pq2),s*(v2.x*e2.y-v2.y*e2.x)));
+  return -sqrt(d.x)*sign(d.y);
+}`,
+};
+
+function sdfCircle(px, py, r) { return Math.sqrt(px*px + py*py) - r; }
+function sdfBox(px, py, bx, by) {
+  const dx = Math.abs(px) - bx, dy = Math.abs(py) - by;
+  return Math.sqrt(Math.max(dx,0)**2 + Math.max(dy,0)**2) + Math.min(Math.max(dx,dy), 0);
+}
+function sdfRoundedBox(px, py, bx, by, r) {
+  const dx = Math.abs(px) - bx + r, dy = Math.abs(py) - by + r;
+  return Math.sqrt(Math.max(dx,0)**2 + Math.max(dy,0)**2) + Math.min(Math.max(dx,dy), 0) - r;
+}
+function sdfSegment(px, py, ax, ay, bx, by) {
+  const pax = px-ax, pay = py-ay, bax = bx-ax, bay = by-ay;
+  const h = Math.max(0, Math.min(1, (pax*bax+pay*bay)/(bax*bax+bay*bay)));
+  const dx = pax - bax*h, dy = pay - bay*h;
+  return Math.sqrt(dx*dx + dy*dy);
+}
+function sdfTriangle(px, py) {
+  const p0x=0, p0y=-0.35, p1x=0.4, p1y=0.25, p2x=-0.4, p2y=0.25;
+  function edge(ex,ey,vx,vy) {
+    const d = Math.max(0, Math.min(1, (vx*ex+vy*ey)/(ex*ex+ey*ey)));
+    const qx=vx-ex*d, qy=vy-ey*d;
+    return [qx*qx+qy*qy, vx*ey-vy*ex];
+  }
+  const s = Math.sign((p1x-p0x)*(p0y-p2y)-(p1y-p0y)*(p0x-p2x));
+  const [d0,s0] = edge(p1x-p0x,p1y-p0y,px-p0x,py-p0y);
+  const [d1,s1] = edge(p2x-p1x,p2y-p1y,px-p1x,py-p1y);
+  const [d2,s2] = edge(p0x-p2x,p0y-p2y,px-p2x,py-p2y);
+  let md = d0, ms = s*s0;
+  if (d1 < md || (d1===md && s*s1 < ms)) { md=d1; ms=s*s1; }
+  if (d2 < md || (d2===md && s*s2 < ms)) { md=d2; ms=s*s2; }
+  return -Math.sqrt(md) * Math.sign(ms);
+}
+
+function distToColor(d) {
+  // inside=red, edge=white, outside=blue
+  if (d < 0) {
+    const t = Math.min(1, -d * 5);
+    return [255, Math.round(255*(1-t)), Math.round(255*(1-t))];
+  } else {
+    const t = Math.min(1, d * 5);
+    return [Math.round(255*(1-t)), Math.round(255*(1-t)), 255];
+  }
+}
+
+function SDFVisualizer() {
+  const [sdfType, setSdfType] = useState('circle');
+  const [radius, setRadius] = useState(0.3);
+  const [boxW, setBoxW] = useState(0.3);
+  const [boxH, setBoxH] = useState(0.2);
+  const [rounding, setRounding] = useState(0.08);
+  const canvasRef = useRef(null);
+  const SIZE = 256;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const img = ctx.createImageData(SIZE, SIZE);
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const px = (x / SIZE - 0.5) * 2;
+        const py = (y / SIZE - 0.5) * 2;
+        let d;
+        switch (sdfType) {
+          case 'circle': d = sdfCircle(px, py, radius); break;
+          case 'box': d = sdfBox(px, py, boxW, boxH); break;
+          case 'roundedBox': d = sdfRoundedBox(px, py, boxW, boxH, rounding); break;
+          case 'line': d = sdfSegment(px, py, -0.4, -0.3, 0.4, 0.3); break;
+          case 'triangle': d = sdfTriangle(px, py); break;
+          default: d = 0;
+        }
+        const [r, g, b] = distToColor(d);
+        const i = (y * SIZE + x) * 4;
+        img.data[i] = r; img.data[i+1] = g; img.data[i+2] = b; img.data[i+3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }, [sdfType, radius, boxW, boxH, rounding]);
+
+  return (
+    <div className="section">
+      <h2>📐 SDF Visualizer</h2>
+      <div className="card">
+        <div className="tabs">
+          {SDF_TYPES.map(s => (
+            <div key={s.key} className={`tab ${sdfType===s.key?'active':''}`} onClick={() => setSdfType(s.key)}>{s.name}</div>
+          ))}
+        </div>
+        <div className="flex-row">
+          <div>
+            <canvas ref={canvasRef} className="viz" width={SIZE} height={SIZE} style={{width:300,height:300}} />
+            <div className="controls">
+              {(sdfType === 'circle') && <Slider label="Radius" value={radius} min={0.05} max={0.8} onChange={setRadius} />}
+              {(sdfType === 'box' || sdfType === 'roundedBox') && <>
+                <Slider label="Width" value={boxW} min={0.05} max={0.8} onChange={setBoxW} />
+                <Slider label="Height" value={boxH} min={0.05} max={0.8} onChange={setBoxH} />
+              </>}
+              {sdfType === 'roundedBox' && <Slider label="Rounding" value={rounding} min={0} max={0.3} onChange={setRounding} />}
+            </div>
+            <div style={{fontSize:'0.75rem',color:'#666',marginTop:'0.5rem'}}>
+              🔴 Inside (negative) → ⚪ Edge (zero) → 🔵 Outside (positive)
+            </div>
+          </div>
+          <div style={{flex:1,minWidth:280}}>
+            <div style={{fontSize:'0.85rem',color:'#aaa',marginBottom:'0.3rem'}}>GLSL Implementation:</div>
+            <GlslCode code={SDF_GLSL[sdfType]} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// 2. UV PATTERNS
+// ═══════════════════════════════════════
+const UV_TYPES = ['Checkerboard', 'Stripes', 'Polar', 'Brick', 'Voronoi'];
+const UV_GLSL = {
+  Checkerboard: `vec3 checkerboard(vec2 uv, float scale) {
+  vec2 c = floor(uv * scale);
+  float checker = mod(c.x + c.y, 2.0);
+  return vec3(checker);
+}`,
+  Stripes: `vec3 stripes(vec2 uv, float freq) {
+  float s = sin(uv.x * freq * 6.283);
+  return vec3(step(0.0, s));
+}`,
+  Polar: `vec3 polar(vec2 uv, float sectors) {
+  vec2 c = uv - 0.5;
+  float angle = atan(c.y, c.x);
+  float r = length(c);
+  float pattern = sin(angle * sectors) * sin(r * 30.0);
+  return vec3(step(0.0, pattern));
+}`,
+  Brick: `vec3 brick(vec2 uv, float scale) {
+  vec2 st = uv * scale;
+  float row = floor(st.y);
+  st.x += mod(row, 2.0) * 0.5;
+  vec2 f = fract(st);
+  float bx = step(0.05, f.x) * step(f.x, 0.95);
+  float by = step(0.1, f.y) * step(f.y, 0.9);
+  return vec3(bx * by * 0.6 + 0.2);
+}`,
+  Voronoi: `vec3 voronoi(vec2 uv, float scale) {
+  vec2 st = uv * scale;
+  vec2 i_st = floor(st);
+  vec2 f_st = fract(st);
+  float m_dist = 1.0;
+  for (int y=-1; y<=1; y++)
+  for (int x=-1; x<=1; x++) {
+    vec2 neighbor = vec2(float(x),float(y));
+    // hash
+    vec2 point = fract(sin(vec2(
+      dot(i_st+neighbor,vec2(127.1,311.7)),
+      dot(i_st+neighbor,vec2(269.5,183.3))
+    ))*43758.5453);
+    float dist = length(neighbor+point-f_st);
+    m_dist = min(m_dist, dist);
+  }
+  return vec3(m_dist);
+}`,
+};
+
+function hash2(ix, iy) {
+  const s1 = Math.sin(ix*127.1 + iy*311.7) * 43758.5453;
+  const s2 = Math.sin(ix*269.5 + iy*183.3) * 43758.5453;
+  return [s1 - Math.floor(s1), s2 - Math.floor(s2)];
+}
+
+function UVPatterns() {
+  const [patType, setPatType] = useState('Checkerboard');
+  const [scale, setScale] = useState(8);
+  const canvasRef = useRef(null);
+  const SIZE = 256;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const img = ctx.createImageData(SIZE, SIZE);
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const u = x / SIZE, v = y / SIZE;
+        let val = 0;
+        switch (patType) {
+          case 'Checkerboard': {
+            const cx = Math.floor(u * scale), cy = Math.floor(v * scale);
+            val = (cx + cy) % 2;
+            break;
+          }
+          case 'Stripes': {
+            val = Math.sin(u * scale * 6.283) > 0 ? 1 : 0;
+            break;
+          }
+          case 'Polar': {
+            const cx2 = u - 0.5, cy2 = v - 0.5;
+            const angle = Math.atan2(cy2, cx2);
+            const r = Math.sqrt(cx2*cx2 + cy2*cy2);
+            val = Math.sin(angle * scale) * Math.sin(r * 30) > 0 ? 1 : 0;
+            break;
+          }
+          case 'Brick': {
+            const su = u * scale, sv = v * scale;
+            const row = Math.floor(sv);
+            const su2 = su + (row % 2) * 0.5;
+            const fu = su2 - Math.floor(su2), fv = sv - Math.floor(sv);
+            const bx = fu > 0.05 && fu < 0.95 ? 1 : 0;
+            const by = fv > 0.1 && fv < 0.9 ? 1 : 0;
+            val = bx * by * 0.6 + 0.2;
+            break;
+          }
+          case 'Voronoi': {
+            const su = u * scale, sv = v * scale;
+            const ix = Math.floor(su), iy = Math.floor(sv);
+            const fx = su - ix, fy = sv - iy;
+            let md = 2;
+            for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                const [px, py] = hash2(ix+dx, iy+dy);
+                const ddx = dx + px - fx, ddy = dy + py - fy;
+                md = Math.min(md, Math.sqrt(ddx*ddx + ddy*ddy));
+              }
+            }
+            val = md;
+            break;
+          }
+        }
+        const c = Math.round(Math.min(1, Math.max(0, val)) * 255);
+        const i = (y * SIZE + x) * 4;
+        img.data[i] = c; img.data[i+1] = c; img.data[i+2] = c; img.data[i+3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }, [patType, scale]);
+
+  return (
+    <div className="section">
+      <h2>🔲 UV Patterns</h2>
+      <div className="card">
+        <div className="tabs">
+          {UV_TYPES.map(t => (
+            <div key={t} className={`tab ${patType===t?'active':''}`} onClick={() => setPatType(t)}>{t}</div>
+          ))}
+        </div>
+        <div className="flex-row">
+          <div>
+            <canvas ref={canvasRef} className="viz" width={SIZE} height={SIZE} style={{width:300,height:300}} />
+            <div className="controls">
+              <Slider label={patType==='Polar'?'Sectors':'Scale'} value={scale} min={1} max={20} step={0.5} onChange={setScale} />
+            </div>
+          </div>
+          <div style={{flex:1,minWidth:280}}>
+            <div style={{fontSize:'0.85rem',color:'#aaa',marginBottom:'0.3rem'}}>GLSL Implementation:</div>
+            <GlslCode code={UV_GLSL[patType]} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// 3. COLOR SPACE CONVERTER
+// ═══════════════════════════════════════
+function rgb2hsv(r, g, b) {
+  r/=255; g/=255; b/=255;
+  const mx=Math.max(r,g,b), mn=Math.min(r,g,b), d=mx-mn;
+  let h=0;
+  if (d!==0) { if(mx===r) h=((g-b)/d)%6; else if(mx===g) h=(b-r)/d+2; else h=(r-g)/d+4; h*=60; if(h<0)h+=360; }
+  const s=mx===0?0:d/mx;
+  return [Math.round(h), Math.round(s*100), Math.round(mx*100)];
+}
+function hsv2rgb(h, s, v) {
+  s/=100; v/=100;
+  const c=v*s, x=c*(1-Math.abs((h/60)%2-1)), m=v-c;
+  let r1,g1,b1;
+  if(h<60){r1=c;g1=x;b1=0;}else if(h<120){r1=x;g1=c;b1=0;}else if(h<180){r1=0;g1=c;b1=x;}else if(h<240){r1=0;g1=x;b1=c;}else if(h<300){r1=x;g1=0;b1=c;}else{r1=c;g1=0;b1=x;}
+  return [Math.round((r1+m)*255), Math.round((g1+m)*255), Math.round((b1+m)*255)];
+}
+function rgb2hsl(r,g,b) {
+  r/=255;g/=255;b/=255;
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b),l=(mx+mn)/2,d=mx-mn;
+  let h=0,s=0;
+  if(d!==0){s=l>0.5?d/(2-mx-mn):d/(mx+mn);if(mx===r)h=((g-b)/d)%6;else if(mx===g)h=(b-r)/d+2;else h=(r-g)/d+4;h*=60;if(h<0)h+=360;}
+  return [Math.round(h),Math.round(s*100),Math.round(l*100)];
+}
+
+function ColorSpaceConverter() {
+  const [r, setR] = useState(120);
+  const [g, setG] = useState(80);
+  const [b, setB] = useState(220);
+  const wheelRef = useRef(null);
+  const SIZE = 220;
+
+  const hsv = rgb2hsv(r, g, b);
+  const hsl = rgb2hsl(r, g, b);
+  const hex = '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+
+  useEffect(() => {
+    const canvas = wheelRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const cx = SIZE/2, cy = SIZE/2, rad = SIZE/2 - 5;
+    const img = ctx.createImageData(SIZE, SIZE);
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const dx = x - cx, dy = y - cy;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const i = (y * SIZE + x) * 4;
+        if (dist <= rad) {
+          const angle = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+          const sat = (dist / rad) * 100;
+          const [pr, pg, pb] = hsv2rgb(angle, sat, 100);
+          img.data[i] = pr; img.data[i+1] = pg; img.data[i+2] = pb; img.data[i+3] = 255;
+        } else {
+          img.data[i+3] = 0;
+        }
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    // draw marker
+    const mAngle = hsv[0] * Math.PI / 180;
+    const mDist = (hsv[1] / 100) * rad;
+    const mx = cx + Math.cos(mAngle) * mDist;
+    const my = cy + Math.sin(mAngle) * mDist;
+    ctx.beginPath(); ctx.arc(mx, my, 6, 0, Math.PI*2);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(mx, my, 4, 0, Math.PI*2);
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
+  }, [r, g, b]);
+
+  return (
+    <div className="section">
+      <h2>🎨 Color Space Converter</h2>
+      <div className="card">
+        <div className="flex-row">
+          <div>
+            <canvas ref={wheelRef} className="viz" width={SIZE} height={SIZE} style={{width:SIZE,height:SIZE,borderRadius:'50%'}} />
+          </div>
+          <div className="flex-col" style={{flex:1,minWidth:250}}>
+            <div style={{display:'flex',gap:'1rem',alignItems:'center',marginBottom:'0.5rem'}}>
+              <div className="color-preview" style={{background:hex}} />
+              <div>
+                <div style={{fontSize:'1.2rem',fontWeight:700,fontFamily:'monospace'}}>{hex}</div>
+              </div>
+            </div>
+            <div style={{fontSize:'0.85rem',color:'#aaa',marginBottom:'0.3rem'}}>RGB</div>
+            <div className="input-row"><label style={{color:'#f66'}}>R</label><input type="range" min={0} max={255} value={r} onChange={e=>setR(+e.target.value)} style={{accentColor:'#f44'}} /><span className="val">{r}</span></div>
+            <div className="input-row"><label style={{color:'#6f6'}}>G</label><input type="range" min={0} max={255} value={g} onChange={e=>setG(+e.target.value)} style={{accentColor:'#4f4'}} /><span className="val">{g}</span></div>
+            <div className="input-row"><label style={{color:'#66f'}}>B</label><input type="range" min={0} max={255} value={b} onChange={e=>setB(+e.target.value)} style={{accentColor:'#44f'}} /><span className="val">{b}</span></div>
+            <div style={{marginTop:'0.5rem',fontSize:'0.85rem',color:'#aaa'}}>HSV: <span style={{color:'#e0e0e0'}}>{hsv[0]}° / {hsv[1]}% / {hsv[2]}%</span></div>
+            <div style={{fontSize:'0.85rem',color:'#aaa'}}>HSL: <span style={{color:'#e0e0e0'}}>{hsl[0]}° / {hsl[1]}% / {hsl[2]}%</span></div>
+          </div>
+          <div style={{flex:1,minWidth:280}}>
+            <div style={{fontSize:'0.85rem',color:'#aaa',marginBottom:'0.3rem'}}>GLSL Conversion Formulas:</div>
+            <GlslCode code={`// RGB to HSV
+vec3 rgb2hsv(vec3 c) {
+  vec4 K = vec4(0.0, -1.0/3.0, 2.0/3.0, -1.0);
+  vec4 p = mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g));
+  vec4 q = mix(vec4(p.xyw,c.r),vec4(c.r,p.yzx),step(p.x,c.r));
+  float d = q.x - min(q.w, q.y);
+  float e = 1.0e-10;
+  return vec3(abs(q.z+(q.w-q.y)/(6.0*d+e)),d/(q.x+e),q.x);
+}
+
+// HSV to RGB
+vec3 hsv2rgb(vec3 c) {
+  vec4 K = vec4(1.0,2.0/3.0,1.0/3.0,3.0);
+  vec3 p = abs(fract(c.xxx+K.xyz)*6.0-K.www);
+  return c.z * mix(K.xxx, clamp(p-K.xxx,0.0,1.0), c.y);
+}`} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// 4. COMMON SHADER FUNCTIONS
+// ═══════════════════════════════════════
+const FUNC_TYPES = ['step', 'smoothstep', 'fract', 'mix', 'clamp', 'sin', 'noise'];
+
+const FUNC_GLSL = {
+  step: 'float y = step(edge, x);',
+  smoothstep: 'float y = smoothstep(edge0, edge1, x);',
+  fract: 'float y = fract(x * frequency);',
+  mix: 'float y = mix(a, b, x);',
+  clamp: 'float y = clamp(x, minVal, maxVal);',
+  sin: 'float y = sin(x * frequency + phase);',
+  noise: '// Value noise via hash\nfloat y = noise(x * frequency);',
+};
+
+function valueNoise(x) {
+  const i = Math.floor(x);
+  const f = x - i;
+  const u = f * f * (3 - 2 * f);
+  const h = n => {
+    let s = Math.sin(n * 127.1) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  return h(i) * (1 - u) + h(i + 1) * u;
+}
+
+function ShaderFunctions() {
+  const [funcType, setFuncType] = useState('smoothstep');
+  const [p1, setP1] = useState(0.3);
+  const [p2, setP2] = useState(0.7);
+  const [p3, setP3] = useState(3.0);
+  const canvasRef = useRef(null);
+  const W = 400, H = 200;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#0d0d1a';
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid
+    ctx.strokeStyle = '#1a1a3a'; ctx.lineWidth = 1;
+    for (let i = 0; i <= 10; i++) {
+      const x = i * W / 10;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      const y = i * H / 10;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+
+    // Axes labels
+    ctx.fillStyle = '#555'; ctx.font = '10px monospace';
+    ctx.fillText('0', 2, H - 2);
+    ctx.fillText('1', W - 10, H - 2);
+    ctx.fillText('1', 2, 12);
+
+    // Function curve
+    ctx.beginPath();
+    ctx.strokeStyle = '#667eea'; ctx.lineWidth = 2.5;
+    for (let px = 0; px < W; px++) {
+      const x = px / W;
+      let y;
+      switch (funcType) {
+        case 'step': y = x >= p1 ? 1 : 0; break;
+        case 'smoothstep': {
+          const t = Math.max(0, Math.min(1, (x - p1) / (p2 - p1)));
+          y = t * t * (3 - 2 * t);
+          break;
+        }
+        case 'fract': y = (x * p3) - Math.floor(x * p3); break;
+        case 'mix': y = p1 * (1 - x) + p2 * x; break;
+        case 'clamp': y = Math.max(p1, Math.min(p2, x)); break;
+        case 'sin': y = (Math.sin(x * p3 * 6.283 + p1 * 6.283) + 1) / 2; break;
+        case 'noise': y = valueNoise(x * p3 * 5); break;
+        default: y = x;
+      }
+      const sy = H - y * H;
+      if (px === 0) ctx.moveTo(px, sy); else ctx.lineTo(px, sy);
+    }
+    ctx.stroke();
+
+    // Param markers
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = '#f78c6c88'; ctx.lineWidth = 1;
+    if (funcType === 'step') {
+      ctx.beginPath(); ctx.moveTo(p1 * W, 0); ctx.lineTo(p1 * W, H); ctx.stroke();
+    }
+    if (funcType === 'smoothstep') {
+      ctx.beginPath(); ctx.moveTo(p1 * W, 0); ctx.lineTo(p1 * W, H); ctx.stroke();
+      ctx.strokeStyle = '#c3e88d88';
+      ctx.beginPath(); ctx.moveTo(p2 * W, 0); ctx.lineTo(p2 * W, H); ctx.stroke();
+    }
+    if (funcType === 'clamp') {
+      ctx.beginPath(); ctx.moveTo(0, H - p1 * H); ctx.lineTo(W, H - p1 * H); ctx.stroke();
+      ctx.strokeStyle = '#c3e88d88';
+      ctx.beginPath(); ctx.moveTo(0, H - p2 * H); ctx.lineTo(W, H - p2 * H); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }, [funcType, p1, p2, p3]);
+
+  const controls = {
+    step: [{ label: 'Edge', val: p1, set: setP1, min: 0, max: 1 }],
+    smoothstep: [{ label: 'Edge0', val: p1, set: setP1, min: 0, max: 1 }, { label: 'Edge1', val: p2, set: setP2, min: 0, max: 1 }],
+    fract: [{ label: 'Frequency', val: p3, set: setP3, min: 1, max: 10 }],
+    mix: [{ label: 'A', val: p1, set: setP1, min: 0, max: 1 }, { label: 'B', val: p2, set: setP2, min: 0, max: 1 }],
+    clamp: [{ label: 'Min', val: p1, set: setP1, min: 0, max: 1 }, { label: 'Max', val: p2, set: setP2, min: 0, max: 1 }],
+    sin: [{ label: 'Frequency', val: p3, set: setP3, min: 0.5, max: 8 }, { label: 'Phase', val: p1, set: setP1, min: 0, max: 1 }],
+    noise: [{ label: 'Frequency', val: p3, set: setP3, min: 0.5, max: 10 }],
+  };
+
+  return (
+    <div className="section">
+      <h2>📈 Common Shader Functions</h2>
+      <div className="card">
+        <div className="tabs">
+          {FUNC_TYPES.map(t => (
+            <div key={t} className={`tab ${funcType===t?'active':''}`} onClick={() => setFuncType(t)}>{t}()</div>
+          ))}
+        </div>
+        <div className="flex-row">
+          <div>
+            <canvas ref={canvasRef} className="viz" width={W} height={H} style={{width:W,height:H}} />
+            <div className="controls">
+              {(controls[funcType] || []).map(c => (
+                <Slider key={c.label} label={c.label} value={c.val} min={c.min} max={c.max} onChange={c.set} />
+              ))}
+            </div>
+          </div>
+          <div style={{flex:1,minWidth:250}}>
+            <GlslCode code={FUNC_GLSL[funcType]} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// 5. NORMAL MAP VIEWER
+// ═══════════════════════════════════════
+function NormalMapViewer() {
+  const canvasRef = useRef(null);
+  const [lightX, setLightX] = useState(0.5);
+  const [lightY, setLightY] = useState(0.5);
+  const [dragging, setDragging] = useState(false);
+  const [normalData, setNormalData] = useState(null);
+  const SIZE = 300;
+
+  // Generate default normal map (sphere + bricks)
+  const generateDefaultNormals = useCallback(() => {
+    const data = new Float32Array(SIZE * SIZE * 3);
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const u = x / SIZE, v = y / SIZE;
+        const idx = (y * SIZE + x) * 3;
+        // Brick pattern normals
+        const su = u * 6, sv = v * 6;
+        const row = Math.floor(sv);
+        const su2 = su + (row % 2) * 0.5;
+        const fu = su2 - Math.floor(su2), fv = sv - Math.floor(sv);
+        const edgeW = 0.06;
+        let nx = 0, ny = 0, nz = 1;
+        // Horizontal edges
+        if (fv < edgeW) { ny = -1; nz = 0.5; }
+        else if (fv > 1 - edgeW) { ny = 1; nz = 0.5; }
+        // Vertical edges
+        if (fu < edgeW) { nx = -1; nz = 0.5; }
+        else if (fu > 1 - edgeW) { nx = 1; nz = 0.5; }
+        // Slight bump within brick
+        const bcx = fu - 0.5, bcy = fv - 0.5;
+        if (fu > edgeW && fu < 1-edgeW && fv > edgeW && fv < 1-edgeW) {
+          nx = bcx * 0.3;
+          ny = bcy * 0.3;
+          nz = 1;
+        }
+        const len = Math.sqrt(nx*nx + ny*ny + nz*nz);
+        data[idx] = nx/len; data[idx+1] = ny/len; data[idx+2] = nz/len;
+      }
+    }
+    return data;
+  }, []);
+
+  useEffect(() => {
+    if (!normalData) setNormalData(generateDefaultNormals());
+  }, [normalData, generateDefaultNormals]);
+
+  useEffect(() => {
+    if (!normalData) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const img = ctx.createImageData(SIZE, SIZE);
+    // Light direction
+    const ldx = lightX * 2 - 1, ldy = lightY * 2 - 1, ldz = 0.8;
+    const lLen = Math.sqrt(ldx*ldx + ldy*ldy + ldz*ldz);
+    const lx = ldx/lLen, ly = ldy/lLen, lz = ldz/lLen;
+
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const idx = (y * SIZE + x) * 3;
+        const nx = normalData[idx], ny = normalData[idx+1], nz = normalData[idx+2];
+        let dot = nx*lx + ny*ly + nz*lz;
+        dot = Math.max(0, dot);
+        // Ambient + diffuse
+        const ambient = 0.1;
+        const c = Math.round(Math.min(1, ambient + dot * 0.9) * 255);
+        // Slight warm tint
+        const ri = Math.min(255, c + 10);
+        const gi = Math.min(255, c);
+        const bi = Math.max(0, c - 5);
+        const pi = (y * SIZE + x) * 4;
+        img.data[pi] = ri; img.data[pi+1] = gi; img.data[pi+2] = bi; img.data[pi+3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }, [normalData, lightX, lightY]);
+
+  const handlePointer = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setLightX(Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)));
+    setLightY(Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height)));
+  };
+
+  const handleUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = SIZE; c.height = SIZE;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, SIZE, SIZE);
+      const px = ctx.getImageData(0, 0, SIZE, SIZE);
+      const data = new Float32Array(SIZE * SIZE * 3);
+      for (let i = 0; i < SIZE * SIZE; i++) {
+        data[i*3]   = (px.data[i*4]   / 255) * 2 - 1;
+        data[i*3+1] = (px.data[i*4+1] / 255) * 2 - 1;
+        data[i*3+2] = (px.data[i*4+2] / 255) * 2 - 1;
+      }
+      setNormalData(data);
+    };
+    img.src = URL.createObjectURL(file);
+  };
+
+  return (
+    <div className="section">
+      <h2>🗺️ Normal Map Viewer</h2>
+      <div className="card">
+        <div className="flex-row">
+          <div>
+            <div className="normal-map-area"
+              onMouseDown={e => { setDragging(true); handlePointer(e); }}
+              onMouseMove={e => { if (dragging) handlePointer(e); }}
+              onMouseUp={() => setDragging(false)}
+              onMouseLeave={() => setDragging(false)}
+            >
+              <canvas ref={canvasRef} className="viz" width={SIZE} height={SIZE} style={{width:SIZE,height:SIZE}} />
+              <div className="light-indicator" style={{left:`${lightX*100}%`, top:`${lightY*100}%`}} />
+            </div>
+            <div className="controls">
+              <label style={{cursor:'pointer'}}>
+                <input type="file" accept="image/*" onChange={handleUpload} style={{display:'none'}} />
+                <span className="tab" style={{display:'inline-block'}}>📁 Upload Normal Map</span>
+              </label>
+              <span className="tab" style={{display:'inline-block',cursor:'pointer'}} onClick={() => setNormalData(generateDefaultNormals())}>🔄 Reset Default</span>
+            </div>
+            <div style={{fontSize:'0.75rem',color:'#666',marginTop:'0.5rem'}}>
+              Click & drag to move light source ☀️
+            </div>
+          </div>
+          <div style={{flex:1,minWidth:280}}>
+            <div style={{fontSize:'0.85rem',color:'#aaa',marginBottom:'0.3rem'}}>Normal Map Lighting (GLSL):</div>
+            <GlslCode code={`// Normal map lighting
+uniform sampler2D normal_map;
+uniform vec3 light_dir;
+
+void fragment() {
+  // Sample normal from texture
+  vec3 normal = texture(normal_map, UV).rgb;
+  normal = normalize(normal * 2.0 - 1.0);
+
+  // Diffuse lighting
+  float diff = max(dot(normal, normalize(light_dir)), 0.0);
+
+  // Ambient + diffuse
+  float ambient = 0.1;
+  vec3 color = vec3(ambient + diff * 0.9);
+
+  COLOR = vec4(color, 1.0);
+}`} />
+            <div style={{marginTop:'0.8rem',fontSize:'0.85rem',color:'#aaa'}}>Godot Shader:</div>
+            <GlslCode code={`shader_type canvas_item;
+
+uniform vec3 light_dir = vec3(0.5, 0.5, 0.8);
+uniform sampler2D normal_tex;
+
+void fragment() {
+  vec3 n = texture(normal_tex, UV).rgb * 2.0 - 1.0;
+  float d = max(dot(normalize(n), normalize(light_dir)), 0.0);
+  COLOR.rgb = vec3(0.1 + d * 0.9);
+}`} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════
+function App() {
+  return (
+    <div className="shader-page">
+      <h1>🔮 Shader Math Visual Reference</h1>
+      <p className="subtitle">Interactive visualizations of common shader math concepts, SDF functions, and GLSL patterns</p>
+      <SDFVisualizer />
+      <UVPatterns />
+      <ColorSpaceConverter />
+      <ShaderFunctions />
+      <NormalMapViewer />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
