@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculators — EruBay</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        nav {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 1rem 2rem;
+            background: #111;
+            border-bottom: 1px solid #222;
+        }
+        nav a {
+            color: #888;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+        nav a:hover, nav a.active { color: #667eea; }
+        nav .logo { font-size: 1.2rem; color: #e0e0e0; font-weight: 800; }
+        #root { padding: 2rem; display: flex; justify-content: center; }
+    </style>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <nav>
+        <span class="logo">🧪 HTML Testing</span>
+        <a href="index.html">Home</a>
+        <a href="calculators.html" class="active">Calculators</a>
+    </nav>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo } = React;
+
+        const fmt = n => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const th = { padding: "8px 12px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" };
+        const td = { padding: "7px 12px", textAlign: "right", borderBottom: "1px solid #2a2a3e" };
+
+        function Field({ label, value, onChange, min, max, prefix, suffix }) {
+          const [local, setLocal] = useState(String(value));
+
+          const commit = () => {
+            const n = parseFloat(local);
+            if (!isNaN(n)) onChange(Math.max(min, Math.min(max, n)));
+            else setLocal(String(value));
+          };
+
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 130 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#9ca3af" }}>{label}</label>
+              <div style={{ display: "flex", alignItems: "center", background: "#1a1a2e", border: "2px solid #4f46e5", borderRadius: 8, padding: "8px 10px", gap: 4 }}>
+                {prefix && <span style={{ color: "#9ca3af", fontWeight: 600 }}>{prefix}</span>}
+                <input
+                  type="number" inputMode="decimal"
+                  value={local}
+                  onChange={e => setLocal(e.target.value)}
+                  onBlur={commit}
+                  onKeyDown={e => e.key === "Enter" && commit()}
+                  min={min} max={max}
+                  style={{ border: "none", background: "transparent", width: "100%", fontSize: 16, fontWeight: 700, color: "#e0e0e0", outline: "none" }}
+                />
+                {suffix && <span style={{ color: "#9ca3af", fontWeight: 600 }}>{suffix}</span>}
+              </div>
+            </div>
+          );
+        }
+
+        function App() {
+          const [monthly, setMonthly] = useState(500);
+          const [annual, setAnnual] = useState(9);
+          const [years, setYears] = useState(20);
+          const [initial, setInitial] = useState(0);
+          const [view, setView] = useState("yearly");
+
+          const { quarters, yearlyData } = useMemo(() => {
+            const qRate = annual / 100 / 4;
+            const quarters = [];
+            let balance = initial;
+            for (let q = 1; q <= years * 4; q++) {
+              balance += monthly * 3;
+              const interest = balance * qRate;
+              balance += interest;
+              quarters.push({
+                q, year: Math.ceil(q / 4), qInYear: ((q - 1) % 4) + 1,
+                contributions: initial + q * monthly * 3,
+                interest: parseFloat(interest.toFixed(2)),
+                balance: parseFloat(balance.toFixed(2)),
+              });
+            }
+            const yearlyData = [];
+            for (let y = 1; y <= years; y++) {
+              const qs = quarters.filter(q => q.year === y);
+              const last = qs[qs.length - 1];
+              yearlyData.push({
+                year: y,
+                contributed: last.contributions,
+                totalInterest: parseFloat((last.balance - last.contributions).toFixed(2)),
+                yearInterest: parseFloat(qs.reduce((s, q) => s + q.interest, 0).toFixed(2)),
+                balance: last.balance,
+              });
+            }
+            return { quarters, yearlyData };
+          }, [monthly, annual, years, initial]);
+
+          const last = quarters[quarters.length - 1];
+
+          return (
+            <div style={{ fontFamily: "sans-serif", padding: 16, maxWidth: 700, width: "100%" }}>
+              <h2 style={{ marginBottom: 4, color: "#e0e0e0" }}>📈 Investment Calculator</h2>
+              <p style={{ color: "#666", marginBottom: 16, fontSize: 14 }}>Compound interest with regular contributions</p>
+
+              {/* Controls */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, padding: 14, background: "#161625", borderRadius: 10, marginBottom: 16, border: "1px solid #2a2a3e" }}>
+                <Field label="Starting Amount" value={initial} onChange={setInitial} min={0} max={10000000} prefix="$" />
+                <Field label="Monthly Investment" value={monthly} onChange={setMonthly} min={1} max={100000} prefix="$" />
+                <Field label="Annual Return" value={annual} onChange={setAnnual} min={0.1} max={50} suffix="%" />
+                <Field label="Years" value={years} onChange={setYears} min={1} max={50} suffix="yrs" />
+              </div>
+
+              {/* Summary */}
+              <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+                {[
+                  { label: "Total Invested", val: fmt(last.contributions), color: "#667eea" },
+                  { label: "Interest Earned", val: fmt(last.balance - last.contributions), color: "#10b981" },
+                  { label: "Final Balance", val: fmt(last.balance), color: "#f59e0b" },
+                ].map(s => (
+                  <div key={s.label} style={{ flex: 1, minWidth: 130, padding: "10px 14px", background: "#111", borderRadius: 8, borderTop: `3px solid ${s.color}` }}>
+                    <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600 }}>{s.label}</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: s.color }}>{s.val}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* View toggle */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                {["yearly", "quarterly"].map(v => (
+                  <button key={v} onClick={() => setView(v)} style={{
+                    padding: "6px 16px", borderRadius: 6, border: "none", cursor: "pointer",
+                    background: view === v ? "#4f46e5" : "#222",
+                    color: view === v ? "#fff" : "#888", fontWeight: 600,
+                    transition: "all 0.2s"
+                  }}>{v.charAt(0).toUpperCase() + v.slice(1)}</button>
+                ))}
+              </div>
+
+              {/* Table */}
+              <div style={{ overflowX: "auto", borderRadius: 8, border: "1px solid #2a2a3e" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ background: "#4f46e5", color: "#fff" }}>
+                      {view === "yearly"
+                        ? <><th style={th}>Year</th><th style={th}>Total Invested</th><th style={th}>Interest This Year</th><th style={th}>Total Interest</th><th style={th}>Balance</th></>
+                        : <><th style={th}>Quarter</th><th style={th}>Total Invested</th><th style={th}>Interest Earned</th><th style={th}>Balance</th></>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {view === "yearly"
+                      ? yearlyData.map((row, i) => (
+                        <tr key={row.year} style={{ background: i % 2 === 0 ? "#0f0f1a" : "#141425" }}>
+                          <td style={td}><strong style={{ color: "#c4b5fd" }}>Year {row.year}</strong></td>
+                          <td style={td}>{fmt(row.contributed)}</td>
+                          <td style={{ ...td, color: "#10b981" }}>{fmt(row.yearInterest)}</td>
+                          <td style={{ ...td, color: "#10b981" }}>{fmt(row.totalInterest)}</td>
+                          <td style={{ ...td, fontWeight: 700, color: "#f59e0b" }}>{fmt(row.balance)}</td>
+                        </tr>
+                      ))
+                      : quarters.map((row, i) => (
+                        <tr key={row.q} style={{ background: i % 2 === 0 ? "#0f0f1a" : "#141425" }}>
+                          <td style={td}><span style={{ color: "#c4b5fd" }}>Y{row.year} Q{row.qInYear}</span></td>
+                          <td style={td}>{fmt(row.contributions)}</td>
+                          <td style={{ ...td, color: "#10b981" }}>{fmt(row.interest)}</td>
+                          <td style={{ ...td, fontWeight: 700, color: "#f59e0b" }}>{fmt(row.balance)}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        }
+
+        ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+</body>
+</html>
