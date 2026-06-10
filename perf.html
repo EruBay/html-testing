@@ -16,7 +16,7 @@
             font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
             min-height: 100vh;
         }
-        #app { max-width: 1400px; margin: 0 auto; padding: 2rem 1.5rem; }
+        #root { max-width: 1400px; margin: 0 auto; padding: 2rem 1.5rem; }
         .page-title {
             text-align: center;
             font-size: 2.4rem;
@@ -238,12 +238,12 @@
         .full-width { grid-column: 1 / -1; }
         @media (max-width: 900px) {
             .calculators-grid { grid-template-columns: 1fr; }
-            #app { padding: 1rem; }
+            #root { padding: 1rem; }
         }
     </style>
 </head>
 <body>
-    <div id="app"></div>
+    <div id="root"></div>
     <script src='shared.js'></script>
     <script type="text/babel">
 
@@ -561,13 +561,14 @@
         const tierLabels = { low: 'Low (Integrated)', mid: 'Mid (GTX 1060)', high: 'High (RTX 3070)', ultra: 'Ultra (RTX 4090)' };
         const baseMax = tierLimits[gpuTier];
         const scaledMax = Math.floor(baseMax * (60 / fps));
-        const effectiveDrawCalls = Math.floor(scaledMax / batchSize);
-        const pct = Math.min((batchSize > 1 ? 100 : (scaledMax / baseMax) * 100), 100);
+        // Each batched draw call renders `batchSize` objects, so batching
+        // multiplies how many objects fit in the same call budget.
+        const renderableObjects = scaledMax * batchSize;
 
         const suggestions = [];
         if (batchSize < 4) suggestions.push('Enable GPU instancing for repeated meshes');
         if (batchSize < 8) suggestions.push('Use texture atlases to reduce material swaps');
-        if (effectiveDrawCalls < 3000) suggestions.push('Consider LOD system to reduce geometry');
+        if (scaledMax < 3000) suggestions.push('Consider LOD system to reduce geometry');
         suggestions.push('Merge static meshes where possible');
         if (fps > 60) suggestions.push('Use occlusion culling for complex scenes');
         suggestions.push('Sort draw calls by material to minimize state changes');
@@ -595,21 +596,25 @@
                     </div>
                 </div>
 
-                <div className="big-value" style={{color:'#ffaa00'}}>{effectiveDrawCalls.toLocaleString()}</div>
-                <p style={{textAlign:'center', color:'#888', fontSize:'0.82rem', marginBottom:'0.5rem'}}>max effective draw calls</p>
+                <div className="big-value" style={{color:'#ffaa00'}}>{scaledMax.toLocaleString()}</div>
+                <p style={{textAlign:'center', color:'#888', fontSize:'0.82rem', marginBottom:'0.5rem'}}>draw calls per frame budget</p>
 
                 <div className="result-box">
                     <div className="result-row">
-                        <span className="label">Base GPU Limit</span>
+                        <span className="label">Base GPU Limit (60 FPS)</span>
                         <span className="value">{baseMax.toLocaleString()}</span>
                     </div>
                     <div className="result-row">
-                        <span className="label">FPS-Adjusted</span>
+                        <span className="label">FPS-Adjusted Budget</span>
                         <span className="value">{scaledMax.toLocaleString()}</span>
                     </div>
                     <div className="result-row">
                         <span className="label">Batching Factor</span>
                         <span className="value">{batchSize}×</span>
+                    </div>
+                    <div className="result-row" style={{borderTop:'1px solid #2a2a4a', paddingTop:'0.5rem', marginTop:'0.3rem'}}>
+                        <span className="label">Renderable Objects (batched)</span>
+                        <span className="value" style={{color:'#ffaa00'}}>{renderableObjects.toLocaleString()}</span>
                     </div>
                 </div>
 
@@ -640,7 +645,7 @@
         );
     }
 
-    ReactDOM.createRoot(document.getElementById('app')).render(<App />);
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
 </body>
 </html>

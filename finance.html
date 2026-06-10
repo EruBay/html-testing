@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calculators — EruBay</title>
+    <title>Finance — HTML Testing</title>
     <link rel="stylesheet" href="shared.css">
     <style>
         #root { padding: 2rem; display: flex; justify-content: center; }
@@ -17,19 +17,29 @@
     <script src="shared.js"></script>
 
     <script type="text/babel">
-        const { useState, useMemo } = React;
+        const { useState, useEffect, useMemo, useRef } = React;
 
         const fmt = n => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const fmtCompact = n => n >= 1e6 ? "$" + (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? "$" + (n / 1e3).toFixed(0) + "K" : "$" + n.toFixed(0);
         const th = { padding: "8px 12px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" };
         const td = { padding: "7px 12px", textAlign: "right", borderBottom: "1px solid #2a2a3e" };
 
         function Field({ label, value, onChange, min, max, prefix, suffix }) {
           const [local, setLocal] = useState(String(value));
 
+          // Keep the display in sync when the committed value differs
+          // (e.g. after clamping to min/max)
+          useEffect(() => { setLocal(String(value)); }, [value]);
+
           const commit = () => {
             const n = parseFloat(local);
-            if (!isNaN(n)) onChange(Math.max(min, Math.min(max, n)));
-            else setLocal(String(value));
+            if (!isNaN(n)) {
+              const clamped = Math.max(min, Math.min(max, n));
+              onChange(clamped);
+              setLocal(String(clamped));
+            } else {
+              setLocal(String(value));
+            }
           };
 
           return (
@@ -52,12 +62,148 @@
           );
         }
 
+        // ── Growth chart (canvas, with hover inspection) ──
+        function GrowthChart({ yearlyData }) {
+          const ref = useRef(null);
+          const [hover, setHover] = useState(null);
+          const W = 660, H = 250;
+          const padL = 64, padR = 14, padT = 14, padB = 26;
+
+          useEffect(() => {
+            const canvas = ref.current;
+            if (!canvas) return;
+            const ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, W, H);
+            const n = yearlyData.length;
+            if (!n) return;
+
+            const maxV = yearlyData[n - 1].balance || 1;
+            const step = n > 1 ? (W - padL - padR) / (n - 1) : 0;
+            const x = i => n > 1 ? padL + i * step : (padL + W - padR) / 2;
+            const y = v => padT + (H - padT - padB) * (1 - v / maxV);
+
+            // Horizontal gridlines + labels
+            ctx.font = "10px monospace";
+            ctx.textAlign = "right";
+            for (let g = 0; g <= 4; g++) {
+              const v = (maxV * g) / 4;
+              ctx.strokeStyle = "#1e1e35";
+              ctx.lineWidth = 1;
+              ctx.beginPath(); ctx.moveTo(padL, y(v)); ctx.lineTo(W - padR, y(v)); ctx.stroke();
+              ctx.fillStyle = "#666";
+              ctx.fillText(fmtCompact(v), padL - 6, y(v) + 3);
+            }
+            // Year labels (first, middle, last)
+            ctx.textAlign = "center";
+            [0, Math.floor((n - 1) / 2), n - 1].forEach(i => {
+              if (i < 0) return;
+              ctx.fillStyle = "#666";
+              ctx.fillText("Y" + yearlyData[i].year, x(i), H - 8);
+            });
+            ctx.textAlign = "left";
+
+            // Contributions area
+            ctx.beginPath();
+            ctx.moveTo(x(0), y(0));
+            yearlyData.forEach((r, i) => ctx.lineTo(x(i), y(r.contributed)));
+            ctx.lineTo(x(n - 1), y(0));
+            ctx.closePath();
+            ctx.fillStyle = "rgba(102, 126, 234, 0.22)";
+            ctx.fill();
+            ctx.beginPath();
+            yearlyData.forEach((r, i) => i === 0 ? ctx.moveTo(x(i), y(r.contributed)) : ctx.lineTo(x(i), y(r.contributed)));
+            ctx.strokeStyle = "#667eea";
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // Balance line
+            ctx.beginPath();
+            yearlyData.forEach((r, i) => i === 0 ? ctx.moveTo(x(i), y(r.balance)) : ctx.lineTo(x(i), y(r.balance)));
+            ctx.strokeStyle = "#10b981";
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            // Hover crosshair + tooltip
+            if (hover !== null && yearlyData[hover]) {
+              const r = yearlyData[hover];
+              const hx = x(hover);
+              ctx.setLineDash([4, 4]);
+              ctx.strokeStyle = "#555";
+              ctx.lineWidth = 1;
+              ctx.beginPath(); ctx.moveTo(hx, padT); ctx.lineTo(hx, H - padB); ctx.stroke();
+              ctx.setLineDash([]);
+              [[r.balance, "#10b981"], [r.contributed, "#667eea"]].forEach(([v, c]) => {
+                ctx.beginPath(); ctx.arc(hx, y(v), 4, 0, Math.PI * 2);
+                ctx.fillStyle = c; ctx.fill();
+                ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+              });
+              const lines = [
+                "Year " + r.year,
+                "Balance:  " + fmt(r.balance),
+                "Invested: " + fmt(r.contributed),
+                "Interest: " + fmt(r.totalInterest),
+              ];
+              ctx.font = "11px monospace";
+              const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16;
+              const bh = lines.length * 15 + 10;
+              const bx = hx + bw + 12 > W - padR ? hx - bw - 12 : hx + 12;
+              const by = padT + 4;
+              ctx.fillStyle = "rgba(13, 13, 26, 0.95)";
+              ctx.strokeStyle = "#3a3a5e";
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.roundRect ? ctx.roundRect(bx, by, bw, bh, 6) : ctx.rect(bx, by, bw, bh);
+              ctx.fill(); ctx.stroke();
+              lines.forEach((l, i) => {
+                ctx.fillStyle = i === 0 ? "#c4b5fd" : i === 1 ? "#10b981" : i === 2 ? "#8da2ff" : "#9ca3af";
+                ctx.fillText(l, bx + 8, by + 18 + i * 15);
+              });
+            }
+          }, [yearlyData, hover]);
+
+          const onMove = e => {
+            const rect = ref.current.getBoundingClientRect();
+            const mx = (e.clientX - rect.left) * (W / rect.width);
+            const n = yearlyData.length;
+            if (n < 2) { setHover(n ? 0 : null); return; }
+            const i = Math.round((mx - padL) / ((W - padL - padR) / (n - 1)));
+            setHover(Math.max(0, Math.min(n - 1, i)));
+          };
+
+          return (
+            <div style={{ background: "#161625", border: "1px solid #2a2a3e", borderRadius: 10, padding: "12px 14px 6px", marginBottom: 16 }}>
+              <div style={{ display: "flex", gap: 16, fontSize: 11, color: "#9ca3af", fontWeight: 600, marginBottom: 6 }}>
+                <span><span style={{ color: "#10b981" }}>━</span> Balance</span>
+                <span><span style={{ color: "#667eea" }}>▰</span> Contributions</span>
+                <span style={{ marginLeft: "auto", color: "#555", fontWeight: 400 }}>hover to inspect</span>
+              </div>
+              <canvas
+                ref={ref} width={W} height={H}
+                style={{ width: "100%", maxWidth: W, display: "block", cursor: "crosshair" }}
+                onMouseMove={onMove}
+                onMouseLeave={() => setHover(null)}
+              />
+            </div>
+          );
+        }
+
+        // Restore last session's inputs (if any)
+        const SAVED = (() => {
+          try { return JSON.parse(localStorage.getItem("ht-finance")) || {}; }
+          catch (e) { return {}; }
+        })();
+
         function App() {
-          const [monthly, setMonthly] = useState(500);
-          const [annual, setAnnual] = useState(9);
-          const [years, setYears] = useState(20);
-          const [initial, setInitial] = useState(0);
+          const [monthly, setMonthly] = useState(SAVED.monthly ?? 500);
+          const [annual, setAnnual] = useState(SAVED.annual ?? 9);
+          const [years, setYears] = useState(SAVED.years ?? 20);
+          const [initial, setInitial] = useState(SAVED.initial ?? 0);
           const [view, setView] = useState("yearly");
+
+          useEffect(() => {
+            try { localStorage.setItem("ht-finance", JSON.stringify({ monthly, annual, years, initial })); }
+            catch (e) { /* storage unavailable */ }
+          }, [monthly, annual, years, initial]);
 
           const { quarters, yearlyData } = useMemo(() => {
             const qRate = annual / 100 / 4;
@@ -91,6 +237,22 @@
 
           const last = quarters[quarters.length - 1];
 
+          const exportCSV = () => {
+            const rows = view === "yearly"
+              ? [["Year", "Total Invested", "Interest This Year", "Total Interest", "Balance"],
+                 ...yearlyData.map(r => [r.year, r.contributed, r.yearInterest, r.totalInterest, r.balance])]
+              : [["Quarter", "Year", "Total Invested", "Interest Earned", "Balance"],
+                 ...quarters.map(r => [`Q${r.qInYear}`, r.year, r.contributions, r.interest, r.balance])];
+            const csv = rows.map(r => r.join(",")).join("\n");
+            const blob = new Blob([csv], { type: "text/csv" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `investment_${years}yr_${annual}pct.csv`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+            window.htToast && window.htToast("📥 CSV downloaded");
+          };
+
           return (
             <div style={{ fontFamily: "sans-serif", padding: 16, maxWidth: 700, width: "100%" }}>
               <h2 style={{ marginBottom: 4, color: "#e0e0e0" }}>📈 Investment Calculator</h2>
@@ -118,8 +280,11 @@
                 ))}
               </div>
 
-              {/* View toggle */}
-              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {/* Growth chart */}
+              <GrowthChart yearlyData={yearlyData} />
+
+              {/* View toggle + export */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
                 {["yearly", "quarterly"].map(v => (
                   <button key={v} onClick={() => setView(v)} style={{
                     padding: "6px 16px", borderRadius: 6, border: "none", cursor: "pointer",
@@ -128,6 +293,11 @@
                     transition: "all 0.2s"
                   }}>{v.charAt(0).toUpperCase() + v.slice(1)}</button>
                 ))}
+                <button onClick={exportCSV} style={{
+                  marginLeft: "auto", padding: "6px 16px", borderRadius: 6, cursor: "pointer",
+                  background: "transparent", border: "1px solid #4f46e5", color: "#8da2ff",
+                  fontWeight: 600, transition: "all 0.2s"
+                }}>📥 Export CSV</button>
               </div>
 
               {/* Table */}
