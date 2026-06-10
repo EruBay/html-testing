@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Game Dev Math Formulas</title>
 <link rel="stylesheet" href="shared.css">
-<script src="shared.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -79,6 +78,7 @@ canvas {
 </head>
 <body>
 <div id="root"></div>
+<script src="shared.js"></script>
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback } = React;
 
@@ -242,7 +242,6 @@ function VectorMath() {
       drawArrow(ctx, origin.x + vecB.x, origin.y + vecB.y, origin.x + vecA.x, origin.y + vecA.y, '#667eea', 3);
       ctx.fillStyle = '#667eea'; ctx.fillText('A-B', origin.x + vecA.x + 5, origin.y + vecA.y + 15);
     } else if (mode === 'dot') {
-      const dot = vecA.x * (-vecB.y) + (-vecA.y) * (-vecB.y); // screen coords
       const dotVal = vecA.x * vecB.x + vecA.y * vecB.y;
       const magA = Math.sqrt(vecA.x ** 2 + vecA.y ** 2);
       const magB = Math.sqrt(vecB.x ** 2 + vecB.y ** 2);
@@ -460,9 +459,9 @@ function ProjectileMotion() {
             <span className="fn">time</span> <span className="op">=</span> 2·v₀·sin(θ) <span className="op">/</span> g
           </div>
           <div className="controls-row">
-            <label>v₀ <input type="number" value={velocity} onChange={e => setVelocity(+e.target.value || 1)} /></label>
-            <label>θ <input type="number" value={angle} min="1" max="89" onChange={e => setAngle(Math.max(1,Math.min(89,+e.target.value)))} /></label>
-            <label>g <input type="number" value={gravity} onChange={e => setGravity(+e.target.value || 1)} /></label>
+            <label>v₀ <input type="number" value={velocity} min="1" onChange={e => setVelocity(Math.max(1, +e.target.value || 1))} /></label>
+            <label>θ <input type="number" value={angle} min="1" max="89" onChange={e => setAngle(Math.max(1,Math.min(89,+e.target.value || 1)))} /></label>
+            <label>g <input type="number" value={gravity} min="1" onChange={e => setGravity(Math.max(1, +e.target.value || 1))} /></label>
           </div>
           <div className="controls-row">
             <button className="btn-sm active" onClick={() => { setAnimT(0); setPlaying(true); }}>▶ Launch</button>
@@ -479,7 +478,7 @@ function ProjectileMotion() {
 }
 
 // ========== STEERING & SEEK ==========
-function SteeringSeck() {
+function SteeringSeek() {
   const canvasRef = useRef(null);
   const [behavior, setBehavior] = useState('seek');
   const targetRef = useRef({ x: 350, y: 150 });
@@ -780,7 +779,7 @@ function App() {
       <LerpEasing />
       <VectorMath />
       <ProjectileMotion />
-      <SteeringSeck />
+      <SteeringSeek />
       <DistanceFunctions />
     </div>
   );

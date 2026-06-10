@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Interactive tools for game dev: math visualizers, perf calculators, noise, colors, shaders, bitwise tricks, probability and finance.">
     <title>EruBay's HTML Testing</title>
     <link rel="stylesheet" href="shared.css">
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
@@ -17,14 +18,16 @@
         const { useState, useEffect, useRef } = React;
 
         const pages = [
-            { icon: "📐", title: "Game Math", desc: "Lerp, vectors, projectiles, steering — formulas you use daily in Godot", color: "#667eea", tags: ["lerp", "vectors", "projectiles", "steering", "distance"], href: "math.html" },
-            { icon: "⚙️", title: "Perf Tools", desc: "Frame budgets, VRAM estimates, LOD & chunk calculators", color: "#10b981", tags: ["FPS budget", "VRAM", "LOD", "chunks", "draw calls"], href: "perf.html" },
-            { icon: "🌊", title: "Noise Lab", desc: "Interactive Perlin noise with presets, color modes & PNG export", color: "#f59e0b", tags: ["perlin", "octaves", "terrain", "procedural"], href: "noise.html" },
-            { icon: "🎨", title: "Colors", desc: "Picker, palette generator, contrast checker, gradient builder", color: "#ec4899", tags: ["picker", "palettes", "WCAG", "gradients", "Godot Color()"], href: "colors.html" },
-            { icon: "✨", title: "Shaders", desc: "SDF visualizer, UV patterns, shader functions & normal maps", color: "#a855f7", tags: ["SDF", "UV", "smoothstep", "GLSL", "normal maps"], href: "shaders.html" },
-            { icon: "🔢", title: "Bitwise", desc: "Bit flags, bitmasks, binary ops & optimization tricks", color: "#14b8a6", tags: ["flags", "masks", "binary", "GDScript", "optimization"], href: "bitwise.html" },
-            { icon: "💰", title: "Finance", desc: "Investment calculator with compound interest projections", color: "#f43f5e", tags: ["compound interest", "ROI", "projections"], href: "finance.html" },
+            { icon: "📐", title: "Game Math", desc: "Lerp, vectors, projectiles, steering — formulas you use daily in Godot", color: "#667eea", tags: ["lerp", "vectors", "projectiles", "steering", "distance"], href: "math.html", demos: 5 },
+            { icon: "⚙️", title: "Perf Tools", desc: "Frame budgets, VRAM estimates, LOD & chunk calculators", color: "#10b981", tags: ["FPS budget", "VRAM", "LOD", "chunks", "draw calls"], href: "perf.html", demos: 5 },
+            { icon: "🌊", title: "Noise Lab", desc: "Interactive Perlin noise with presets, color modes & PNG/Godot export", color: "#f59e0b", tags: ["perlin", "octaves", "terrain", "procedural"], href: "noise.html", demos: 1 },
+            { icon: "🎨", title: "Colors", desc: "Picker, palette generator, contrast checker, gradient builder", color: "#ec4899", tags: ["picker", "palettes", "WCAG", "gradients", "Godot Color()"], href: "colors.html", demos: 5 },
+            { icon: "✨", title: "Shaders", desc: "SDF visualizer, UV patterns, shader functions & normal maps", color: "#a855f7", tags: ["SDF", "UV", "smoothstep", "GLSL", "normal maps"], href: "shaders.html", demos: 5 },
+            { icon: "🔢", title: "Bitwise", desc: "Bit flags, bitmasks, binary ops & optimization tricks", color: "#14b8a6", tags: ["flags", "masks", "binary", "GDScript", "optimization"], href: "bitwise.html", demos: 6 },
+            { icon: "🎲", title: "Random", desc: "Drop chance math, loot table simulator & dice distributions", color: "#f97316", tags: ["RNG", "loot", "dice", "probability"], href: "random.html", demos: 3 },
+            { icon: "💰", title: "Finance", desc: "Compound interest with growth chart & CSV export", color: "#f43f5e", tags: ["compound interest", "ROI", "projections"], href: "finance.html", demos: 1 },
         ];
+        const totalDemos = pages.reduce((s, p) => s + p.demos, 0);
 
         function Particle({ delay }) {
             const style = {
@@ -143,7 +146,7 @@
 
             const stats = [
                 { label: "Tools", value: count, color: "#667eea" },
-                { label: "Interactive Demos", value: count * 4, color: "#10b981" },
+                { label: "Interactive Demos", value: Math.round(totalDemos * (count / target)), color: "#10b981" },
                 { label: "Efficiency", value: "∞", color: "#f59e0b" },
             ];
 
@@ -163,8 +166,50 @@
             );
         }
 
+        function SearchBox({ query, setQuery }) {
+            const [focused, setFocused] = useState(false);
+            return (
+                <div style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    background: "#14142a",
+                    border: `1px solid ${focused ? "#667eea" : "#2a2a4a"}`,
+                    borderRadius: 10, padding: "9px 14px",
+                    width: "100%", maxWidth: 420, marginBottom: 28,
+                    transition: "border-color 0.2s, box-shadow 0.2s",
+                    boxShadow: focused ? "0 0 0 3px #667eea22" : "none",
+                    opacity: 0, animation: "fadeSlideUp 0.5s ease 0.4s forwards",
+                }}>
+                    <span style={{ color: "#555", fontSize: 14 }}>🔍</span>
+                    <input
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                        onFocus={() => setFocused(true)}
+                        onBlur={() => setFocused(false)}
+                        placeholder="Filter tools… (or press Ctrl+K anywhere)"
+                        style={{
+                            flex: 1, background: "transparent", border: "none", outline: "none",
+                            color: "#e0e0e0", fontSize: 14, fontFamily: "inherit",
+                        }}
+                    />
+                    {query && (
+                        <span
+                            onClick={() => setQuery("")}
+                            style={{ color: "#666", cursor: "pointer", fontSize: 13, padding: "0 2px" }}
+                            title="Clear"
+                        >✕</span>
+                    )}
+                </div>
+            );
+        }
+
         function App() {
             const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+            const [query, setQuery] = useState("");
+
+            const q = query.trim().toLowerCase();
+            const visible = pages.filter(p =>
+                !q || (p.title + " " + p.desc + " " + p.tags.join(" ")).toLowerCase().includes(q)
+            );
 
             return (
                 <div
@@ -212,6 +257,8 @@
 
                     <Stats />
 
+                    <SearchBox query={query} setQuery={setQuery} />
+
                     {/* Cards grid */}
                     <div style={{
                         display: "grid",
@@ -221,14 +268,24 @@
                         width: "100%",
                         position: "relative",
                     }}>
-                        {pages.map((p, i) => <Card key={p.title} {...p} index={i} />)}
+                        {visible.map((p, i) => <Card key={p.title} {...p} index={i} />)}
                     </div>
+                    {visible.length === 0 && (
+                        <div style={{ color: "#555", padding: "2rem", fontSize: 15 }}>
+                            No tools match “{query}” — try another keyword
+                        </div>
+                    )}
 
                     <footer style={{
                         marginTop: 48, color: "#333", fontSize: 13,
                         opacity: 0, animation: "fadeSlideUp 0.5s ease 0.8s forwards",
+                        textAlign: "center", lineHeight: 1.8,
                     }}>
                         Built with ☕ by EruBay
+                        <br />
+                        <span style={{ color: "#2a2a3e" }}>
+                            Tip: <kbd style={{ background: "#14142a", border: "1px solid #2a2a4a", borderRadius: 4, padding: "1px 6px", fontFamily: "monospace" }}>Ctrl K</kbd> opens the quick switcher on any page · double-click code blocks to copy
+                        </span>
                     </footer>
                 </div>
             );

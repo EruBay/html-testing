@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Noise Playground — Faultwork Tools</title>
+<title>Noise Lab — HTML Testing</title>
 <link rel="stylesheet" href="shared.css">
 <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
@@ -53,6 +53,8 @@ button.outline.active { background:var(--accent); color:#fff; border-color:var(-
 .toggle-switch input:checked + .toggle-slider { background:var(--accent); }
 .toggle-switch input:checked + .toggle-slider:before { transform:translateX(18px); }
 .export-section { display:flex; gap:.5rem; flex-wrap:wrap; }
+.code-block { background:#0a0a0a; border:1px solid var(--border); border-radius:8px; padding:.8rem 1rem; font-family:'JetBrains Mono','Consolas',monospace; font-size:.78rem; line-height:1.55; color:#a5b4fc; white-space:pre; overflow-x:auto; }
+.code-hint { font-size:.72rem; color:#555; margin-top:.4rem; }
 @media(max-width:900px) {
   .main-layout { flex-direction:column; align-items:center; }
   .controls-section { min-width:unset; width:100%; }
@@ -193,22 +195,27 @@ function heatColor(v) {
 
 const CANVAS_SIZE = 420;
 
+// Restore last session's settings (if any)
+const SAVED = (() => {
+  try { return JSON.parse(localStorage.getItem('ht-noise')) || {}; }
+  catch (e) { return {}; }
+})();
+
 function App() {
   const canvasRef = React.useRef(null);
-  const animRef = React.useRef(null);
-  const [frequency, setFrequency] = React.useState(0.04);
-  const [octaves, setOctaves] = React.useState(6);
-  const [lacunarity, setLacunarity] = React.useState(2.0);
-  const [persistence, setPersistence] = React.useState(0.5);
-  const [seed, setSeed] = React.useState(42);
+  const [frequency, setFrequency] = React.useState(SAVED.frequency ?? 0.04);
+  const [octaves, setOctaves] = React.useState(SAVED.octaves ?? 6);
+  const [lacunarity, setLacunarity] = React.useState(SAVED.lacunarity ?? 2.0);
+  const [persistence, setPersistence] = React.useState(SAVED.persistence ?? 0.5);
+  const [seed, setSeed] = React.useState(SAVED.seed ?? 42);
   const [zOffset, setZOffset] = React.useState(0);
   const [animate, setAnimate] = React.useState(false);
-  const [colorMode, setColorMode] = React.useState('Grayscale');
-  const [ridged, setRidged] = React.useState(false);
+  const [colorMode, setColorMode] = React.useState(SAVED.colorMode ?? 'Grayscale');
+  const [ridged, setRidged] = React.useState(SAVED.ridged ?? false);
   const [stats, setStats] = React.useState({ min:0, max:0, avg:0, time:0 });
-  const [activePreset, setActivePreset] = React.useState('Terrain');
+  const [activePreset, setActivePreset] = React.useState(SAVED.activePreset ?? 'Terrain');
 
-  const generate = React.useCallback((zOff) => {
+  const generate = React.useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -217,7 +224,7 @@ function App() {
     const data = imageData.data;
     const t0 = performance.now();
     let minV = Infinity, maxV = -Infinity, sum = 0;
-    const z = zOff !== undefined ? zOff : zOffset;
+    const z = zOffset;
 
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
@@ -257,21 +264,33 @@ function App() {
   // Update perlin seed
   React.useEffect(() => { perlin.setSeed(seed); }, [seed]);
 
-  // Render on param change
+  // Render on param change (zOffset changes flow through `generate` too,
+  // so the animation loop below only needs to advance the state)
   React.useEffect(() => { generate(); }, [generate, seed]);
 
-  // Animation loop
+  // Persist settings
   React.useEffect(() => {
-    if (!animate) { if (animRef.current) cancelAnimationFrame(animRef.current); return; }
-    let z = zOffset;
+    try {
+      localStorage.setItem('ht-noise', JSON.stringify({
+        frequency, octaves, lacunarity, persistence, seed, colorMode, ridged, activePreset,
+      }));
+    } catch (e) { /* storage unavailable (private mode etc.) */ }
+  }, [frequency, octaves, lacunarity, persistence, seed, colorMode, ridged, activePreset]);
+
+  // Animation loop — only advances Z; rendering happens via the effect above,
+  // so slider tweaks mid-animation always use fresh params.
+  const zRef = React.useRef(zOffset);
+  React.useEffect(() => { zRef.current = zOffset; }, [zOffset]);
+  React.useEffect(() => {
+    if (!animate) return;
+    let raf;
     const tick = () => {
-      z += 0.02;
-      setZOffset(parseFloat(z.toFixed(2)));
-      generate(z);
-      animRef.current = requestAnimationFrame(tick);
+      zRef.current = parseFloat((zRef.current + 0.02).toFixed(2));
+      setZOffset(zRef.current);
+      raf = requestAnimationFrame(tick);
     };
-    animRef.current = requestAnimationFrame(tick);
-    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, [animate]);
 
   const applyPreset = (name) => {
@@ -293,18 +312,40 @@ function App() {
     link.download = `noise_${seed}_${Date.now()}.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
+    window.htToast && window.htToast('📥 PNG exported');
+  };
+
+  const godotCode = React.useMemo(() => (
+`var noise := FastNoiseLite.new()
+noise.noise_type = FastNoiseLite.TYPE_PERLIN
+noise.seed = ${seed}
+noise.frequency = ${frequency}
+noise.fractal_type = FastNoiseLite.${ridged ? 'FRACTAL_RIDGED' : 'FRACTAL_FBM'}
+noise.fractal_octaves = ${octaves}
+noise.fractal_lacunarity = ${lacunarity}
+noise.fractal_gain = ${persistence}
+
+# get_noise_2d returns -1..1 — remap to 0..1:
+var v := noise.get_noise_2d(x, y) * 0.5 + 0.5`
+  ), [seed, frequency, ridged, octaves, lacunarity, persistence]);
+
+  const copyGodot = () => {
+    if (!navigator.clipboard) return;
+    navigator.clipboard.writeText(godotCode)
+      .then(() => window.htToast && window.htToast('📋 Godot snippet copied'));
   };
 
   return (
     <div className="app-container">
-      <h1>🌊 Noise Playground</h1>
-      <p className="subtitle">Interactive Perlin noise visualization — Faultwork terrain tools</p>
+      <h1>🌊 Noise Lab</h1>
+      <p className="subtitle">Interactive Perlin noise visualization — terrain, caves, clouds & more</p>
 
       <div className="main-layout">
         <div className="canvas-section">
           <canvas ref={canvasRef} width={CANVAS_SIZE} height={CANVAS_SIZE} className="noise-canvas" />
           <div style={{marginTop:'.8rem'}} className="export-section">
             <button onClick={exportPNG}>📥 Export PNG</button>
+            <button className="outline" onClick={copyGodot}>🤖 Copy Godot Code</button>
           </div>
         </div>
 
@@ -369,6 +410,13 @@ function App() {
                 <button key={m} className={`outline ${colorMode===m?'active':''}`} onClick={()=>setColorMode(m)}>{m}</button>
               ))}
             </div>
+          </div>
+
+          {/* Godot export */}
+          <div className="card">
+            <h3>🤖 Godot FastNoiseLite</h3>
+            <div className="code-block">{godotCode}</div>
+            <div className="code-hint">Matches the current settings — double-click the code (or use the button) to copy</div>
           </div>
 
           {/* Stats */}

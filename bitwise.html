@@ -252,7 +252,15 @@ function BitFlagsEditor() {
     return code;
   }, [names, enabled, combined]);
 
-  const copyCode = () => { navigator.clipboard.writeText(gdscript); };
+  const [copied, setCopied] = useState(false);
+  const copyCode = () => {
+    if (!navigator.clipboard) return;
+    navigator.clipboard.writeText(gdscript).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+      window.htToast && window.htToast('📋 GDScript copied');
+    });
+  };
 
   return (
     <div className="bw-section">
@@ -278,7 +286,7 @@ function BitFlagsEditor() {
         <div>
           <div style={{color:'#888',fontSize:'0.8rem',marginBottom:'0.3rem'}}>Generated GDScript:</div>
           <div className="code-block">
-            <button className="copy-btn" onClick={copyCode}>Copy</button>
+            <button className="copy-btn" onClick={copyCode}>{copied ? 'Copied ✓' : 'Copy'}</button>
             {gdscript}
           </div>
         </div>
@@ -439,9 +447,6 @@ function OptimizationTricks() {
       code: 'a ^= b; b ^= a; a ^= b;',
       explain: 'XOR swap works because XOR is its own inverse. a^b^b = a. Three XOR operations swap two values without a temporary.',
       demo: () => {
-        const sa = vals.swap1 ^ vals.swap2 ^ vals.swap2; // stays swap1
-        const sb = vals.swap1 ^ vals.swap2 ^ vals.swap1; // stays swap2
-        // Show what the swap produces
         return (
           <div className="trick-demo">
             <span style={{color:'#888'}}>a =</span>
@@ -519,7 +524,6 @@ function App() {
   const [activeTab, setActiveTab] = useState(0);
   const tabs = ['Visualizer','Calculator','Flags','Powers of 2','Tricks','Bitmask'];
   const panels = [BinaryVisualizer, BitwiseCalc, BitFlagsEditor, PowerOf2Reference, OptimizationTricks, BitmaskBuilder];
-  const Panel = panels[activeTab];
 
   return (
     <div className="bw-container">
@@ -530,7 +534,12 @@ function App() {
           <button key={i} className={`tab-btn ${activeTab === i ? 'active' : ''}`} onClick={() => setActiveTab(i)}>{t}</button>
         ))}
       </div>
-      <Panel />
+      {/* All panels stay mounted so your inputs survive tab switches */}
+      {panels.map((Panel, i) => (
+        <div key={i} style={{ display: activeTab === i ? 'block' : 'none' }}>
+          <Panel />
+        </div>
+      ))}
     </div>
   );
 }

@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Drop chance math, loot table simulator and dice distributions for game balancing.">
+<title>RNG & Probability — HTML Testing</title>
+<link rel="stylesheet" href="shared.css">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+.rp-page { max-width: 1200px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+.rp-title {
+  text-align: center; font-size: 2.4rem; font-weight: 800;
+  background: linear-gradient(135deg, #f97316, #ec4899);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-bottom: 0.5rem;
+}
+.rp-subtitle { text-align: center; color: #888; margin-bottom: 2.5rem; font-size: 1.05rem; }
+.rp-card {
+  background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 16px;
+  padding: 1.5rem; margin-bottom: 2rem; overflow: hidden;
+}
+.rp-card h2 {
+  font-size: 1.4rem; color: #f97316; margin: 0 0 1rem 0;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+canvas { border-radius: 10px; background: #0d0d1a; display: block; border: 1px solid #2a2a4a; }
+.formula-box {
+  background: #12122a; border: 1px solid #2a2a4a; border-radius: 8px;
+  padding: 0.75rem 1rem; margin: 0.5rem 0; font-family: 'Consolas', monospace;
+  font-size: 0.85rem; color: #c8d6e5; line-height: 1.6; white-space: pre-wrap;
+}
+.formula-box .fn { color: #f97316; font-weight: 700; }
+.formula-box .val { color: #c3e88d; }
+.formula-box .comment { color: #546e7a; font-style: italic; }
+.flex-canvas { display: flex; flex-wrap: wrap; gap: 1.2rem; align-items: flex-start; }
+.flex-canvas .side { flex: 1; min-width: 260px; }
+.controls-row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin: 0.75rem 0; }
+.controls-row label { color: #aaa; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; }
+.controls-row input[type="range"] {
+  -webkit-appearance: none; appearance: none; background: #2a2a4a; height: 6px; border-radius: 3px;
+  outline: none; width: 150px;
+}
+.controls-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+  background: #f97316; cursor: pointer;
+}
+.controls-row input[type="number"], .loot-row input[type="number"] {
+  background: #12122a; border: 1px solid #2a2a4a; color: #e0e0e0;
+  border-radius: 6px; padding: 4px 8px; width: 75px; font-size: 0.85rem; outline: none;
+}
+.controls-row input[type="number"]:focus, .loot-row input:focus { border-color: #f97316; }
+.readout {
+  display: inline-block; background: #12122a; border: 1px solid #333;
+  border-radius: 6px; padding: 3px 10px; color: #f97316;
+  font-family: 'Consolas', monospace; font-size: 0.85rem; margin: 2px;
+}
+.big-stat { display: flex; gap: 0.75rem; flex-wrap: wrap; margin: 0.75rem 0; }
+.big-stat .stat {
+  flex: 1; min-width: 120px; background: #12122a; border: 1px solid #2a2a4a;
+  border-radius: 10px; padding: 0.6rem 0.9rem;
+}
+.big-stat .stat .lbl { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+.big-stat .stat .num { font-size: 1.3rem; font-weight: 800; color: #f97316; font-family: 'Consolas', monospace; }
+.btn {
+  padding: 7px 18px; border-radius: 8px; border: none; cursor: pointer;
+  background: linear-gradient(135deg, #f97316, #ec4899); color: #fff;
+  font-weight: 700; font-size: 0.88rem; transition: all 0.2s;
+}
+.btn:hover { transform: translateY(-1px); box-shadow: 0 4px 15px rgba(249, 115, 22, 0.3); }
+.btn.outline {
+  background: transparent; border: 1px solid #2a2a4a; color: #aaa;
+  font-weight: 600;
+}
+.btn.outline:hover { border-color: #f97316; color: #f97316; box-shadow: none; }
+.loot-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+.loot-row .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.loot-row input[type="text"] {
+  background: transparent; border: none; border-bottom: 1px solid #333;
+  color: #e0e0e0; font-size: 0.9rem; padding: 3px 4px; width: 120px; outline: none;
+}
+.loot-row input[type="text"]:focus { border-color: #f97316; }
+.loot-row .pct { color: #888; font-family: 'Consolas', monospace; font-size: 0.82rem; min-width: 60px; }
+.loot-row .rm {
+  background: transparent; border: 1px solid #442; color: #f87171;
+  border-radius: 6px; cursor: pointer; padding: 2px 8px; font-size: 0.8rem;
+}
+.loot-row .rm:hover { background: #f8717122; }
+.sim-bar-row { margin-bottom: 0.65rem; }
+.sim-bar-row .bar-head {
+  display: flex; justify-content: space-between; font-size: 0.78rem;
+  color: #aaa; margin-bottom: 3px; font-family: 'Consolas', monospace;
+}
+.sim-bar-track { background: #12122a; border-radius: 4px; height: 16px; position: relative; overflow: hidden; }
+.sim-bar-expected {
+  position: absolute; top: 0; bottom: 0; left: 0;
+  background: repeating-linear-gradient(45deg, #333, #333 4px, #2a2a3e 4px, #2a2a3e 8px);
+  border-radius: 4px;
+}
+.sim-bar-actual { position: absolute; top: 3px; bottom: 3px; left: 0; border-radius: 3px; transition: width 0.3s; }
+.dice-chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 38px; height: 38px; border-radius: 8px; background: #12122a;
+  border: 1px solid #f97316; color: #f97316; font-weight: 800;
+  font-family: 'Consolas', monospace; font-size: 1rem; margin: 2px; padding: 0 6px;
+}
+.dice-total {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 52px; height: 44px; border-radius: 10px; padding: 0 10px;
+  background: linear-gradient(135deg, #f97316, #ec4899); color: #fff;
+  font-weight: 800; font-size: 1.25rem; font-family: 'Consolas', monospace; margin-left: 8px;
+}
+select.dice-sel {
+  background: #12122a; border: 1px solid #2a2a4a; color: #e0e0e0;
+  border-radius: 6px; padding: 4px 8px; font-size: 0.85rem; outline: none;
+}
+@media (max-width: 700px) { .rp-page { padding: 1rem 0.75rem 3rem; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="shared.js"></script>
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo } = React;
+
+// ========== 1. DROP CHANCE CALCULATOR ==========
+function DropChance() {
+  const canvasRef = useRef(null);
+  const [chance, setChance] = useState(5);     // percent
+  const [attempts, setAttempts] = useState(30);
+
+  const p = Math.min(100, Math.max(0.01, chance)) / 100;
+  const atLeastOne = 1 - Math.pow(1 - p, attempts);
+  const expected = 1 / p;
+  const need = c => p >= 1 ? 1 : Math.ceil(Math.log(1 - c) / Math.log(1 - p));
+  const n50 = need(0.5), n90 = need(0.9), n99 = need(0.99);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const padL = 38, padR = 12, padT = 12, padB = 26;
+    const gw = W - padL - padR, gh = H - padT - padB;
+    const maxN = Math.min(2000, Math.max(attempts, n99, 10));
+
+    // Gridlines at 0/25/50/75/100%
+    ctx.font = '10px monospace'; ctx.textAlign = 'right';
+    for (let g = 0; g <= 4; g++) {
+      const frac = g / 4;
+      const y = padT + gh * (1 - frac);
+      ctx.strokeStyle = '#1e1e35'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+      ctx.fillStyle = '#666';
+      ctx.fillText((frac * 100).toFixed(0) + '%', padL - 5, y + 3);
+    }
+    ctx.textAlign = 'center';
+    ctx.fillText('1', padL, H - 8);
+    ctx.fillText(maxN + ' attempts', padL + gw / 2, H - 8);
+    ctx.fillText(String(maxN), W - padR, H - 8);
+    ctx.textAlign = 'left';
+
+    // Probability curve: P(at least one) = 1 - (1-p)^n
+    ctx.beginPath();
+    ctx.strokeStyle = '#f97316'; ctx.lineWidth = 2.5;
+    for (let px = 0; px <= gw; px++) {
+      const n = 1 + (px / gw) * (maxN - 1);
+      const prob = 1 - Math.pow(1 - p, n);
+      const x = padL + px, y = padT + gh * (1 - prob);
+      px === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Marker at current attempt count
+    const mx = padL + ((attempts - 1) / Math.max(1, maxN - 1)) * gw;
+    const my = padT + gh * (1 - atLeastOne);
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = '#555'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(mx, padT); ctx.lineTo(mx, padT + gh); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(mx, my, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#f97316'; ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#fbbf77'; ctx.font = 'bold 11px monospace';
+    const label = (atLeastOne * 100).toFixed(1) + '%';
+    ctx.fillText(label, Math.min(mx + 8, W - padR - 45), Math.max(my - 8, padT + 12));
+  }, [p, attempts, atLeastOne, n99]);
+
+  return (
+    <div className="rp-card">
+      <h2><span>🎯</span> Drop Chance Calculator</h2>
+      <div className="flex-canvas">
+        <div>
+          <canvas ref={canvasRef} width={460} height={240} />
+          <div className="controls-row">
+            <label>Chance
+              <input type="range" min="0.1" max="100" step="0.1" value={chance} onChange={e => setChance(+e.target.value)} />
+              <input type="number" min="0.01" max="100" step="0.1" value={chance}
+                onChange={e => setChance(Math.min(100, Math.max(0.01, +e.target.value || 0.01)))} />
+              <span style={{color:'#666'}}>%</span>
+            </label>
+          </div>
+          <div className="controls-row">
+            <label>Attempts
+              <input type="range" min="1" max="200" step="1" value={Math.min(200, attempts)} onChange={e => setAttempts(+e.target.value)} />
+              <input type="number" min="1" max="100000" value={attempts}
+                onChange={e => setAttempts(Math.max(1, Math.floor(+e.target.value || 1)))} />
+            </label>
+          </div>
+        </div>
+        <div className="side">
+          <div className="big-stat">
+            <div className="stat">
+              <div className="lbl">P(≥1 drop in {attempts})</div>
+              <div className="num">{(atLeastOne * 100).toFixed(2)}%</div>
+            </div>
+            <div className="stat">
+              <div className="lbl">Expected attempts</div>
+              <div className="num">{expected.toFixed(1)}</div>
+            </div>
+          </div>
+          <div style={{margin:'0.5rem 0'}}>
+            <span className="readout">50% by attempt {n50}</span>
+            <span className="readout">90% by attempt {n90}</span>
+            <span className="readout">99% by attempt {n99}</span>
+          </div>
+          <div className="formula-box">
+{`P(at least one) = 1 - (1 - p)^n
+              = 1 - ${(1 - p).toFixed(4)}^${attempts} = `}<span className="val">{(atLeastOne * 100).toFixed(2)}%</span>{`
+expected tries  = 1 / p = `}<span className="val">{expected.toFixed(1)}</span>
+          </div>
+          <div className="formula-box">
+<span className="comment"># Godot — {chance}% drop chance</span>{`
+`}<span className="fn">if</span>{` randf() < ${(p).toFixed(4)}:
+    drop_item()`}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ========== 2. LOOT TABLE SIMULATOR ==========
+function LootTable() {
+  const [rows, setRows] = useState([
+    { name: 'Common',    weight: 60, color: '#9ca3af' },
+    { name: 'Uncommon',  weight: 25, color: '#22c55e' },
+    { name: 'Rare',      weight: 10, color: '#3b82f6' },
+    { name: 'Epic',      weight: 4,  color: '#a855f7' },
+    { name: 'Legendary', weight: 1,  color: '#f97316' },
+  ]);
+  const [results, setResults] = useState(null);
+
+  const COLORS = ['#9ca3af', '#22c55e', '#3b82f6', '#a855f7', '#f97316', '#ec4899', '#14b8a6', '#eab308'];
+  const total = rows.reduce((s, r) => s + Math.max(0, r.weight), 0);
+
+  const update = (i, key, val) => {
+    setRows(prev => prev.map((r, j) => j === i ? { ...r, [key]: val } : r));
+    setResults(null);
+  };
+  const addRow = () => {
+    if (rows.length >= 8) return;
+    setRows([...rows, { name: `Item ${rows.length + 1}`, weight: 10, color: COLORS[rows.length % COLORS.length] }]);
+    setResults(null);
+  };
+  const removeRow = (i) => {
+    if (rows.length <= 2) return;
+    setRows(rows.filter((_, j) => j !== i));
+    setResults(null);
+  };
+
+  const simulate = (n) => {
+    if (total <= 0) return;
+    const cum = [];
+    let acc = 0;
+    rows.forEach(r => { acc += Math.max(0, r.weight); cum.push(acc); });
+    const counts = rows.map(() => 0);
+    for (let i = 0; i < n; i++) {
+      const roll = Math.random() * acc;
+      let j = 0;
+      while (cum[j] <= roll) j++;
+      counts[j]++;
+    }
+    setResults({ counts, n });
+  };
+
+  const gdscript = useMemo(() => {
+    const dict = rows.map(r => `"${r.name.replace(/"/g, '')}": ${Math.max(0, r.weight)}.0`).join(', ');
+    return `var loot := {${dict}}
+
+func pick_loot() -> String:
+    var total := 0.0
+    for w in loot.values():
+        total += w
+    var roll := randf() * total
+    for item in loot:
+        roll -= loot[item]
+        if roll < 0.0:
+            return item
+    return loot.keys()[0]`;
+  }, [rows]);
+
+  const maxPct = results
+    ? Math.max(...rows.map((r, i) => Math.max(
+        total > 0 ? (Math.max(0, r.weight) / total) * 100 : 0,
+        (results.counts[i] / results.n) * 100)))
+    : 100;
+
+  return (
+    <div className="rp-card">
+      <h2><span>💎</span> Loot Table Simulator</h2>
+      <div className="flex-canvas">
+        <div style={{flex:1, minWidth:280}}>
+          {rows.map((r, i) => (
+            <div key={i} className="loot-row">
+              <span className="dot" style={{background: r.color}} />
+              <input type="text" value={r.name} onChange={e => update(i, 'name', e.target.value)} />
+              <label style={{color:'#666', fontSize:'0.8rem'}}>weight</label>
+              <input type="number" min="0" value={r.weight}
+                onChange={e => update(i, 'weight', Math.max(0, +e.target.value || 0))} />
+              <span className="pct">{total > 0 ? ((Math.max(0, r.weight) / total) * 100).toFixed(2) + '%' : '—'}</span>
+              {rows.length > 2 && <button className="rm" onClick={() => removeRow(i)} title="Remove">✗</button>}
+            </div>
+          ))}
+          <div className="controls-row" style={{marginTop:'0.75rem'}}>
+            <button className="btn outline" onClick={addRow} disabled={rows.length >= 8}>+ Add Item</button>
+            <button className="btn" onClick={() => simulate(1000)} disabled={total <= 0}>🎰 Roll 1,000</button>
+            <button className="btn" onClick={() => simulate(100000)} disabled={total <= 0}>🎰 Roll 100,000</button>
+          </div>
+          {results && (
+            <div style={{marginTop:'1rem'}}>
+              <div style={{fontSize:'0.78rem', color:'#888', marginBottom:'0.5rem'}}>
+                {results.n.toLocaleString()} rolls — solid bar = actual, hatched = expected
+              </div>
+              {rows.map((r, i) => {
+                const expected = total > 0 ? (Math.max(0, r.weight) / total) * 100 : 0;
+                const actual = (results.counts[i] / results.n) * 100;
+                return (
+                  <div key={i} className="sim-bar-row">
+                    <div className="bar-head">
+                      <span style={{color: r.color}}>{r.name}</span>
+                      <span>{results.counts[i].toLocaleString()}× — {actual.toFixed(2)}% (exp {expected.toFixed(2)}%)</span>
+                    </div>
+                    <div className="sim-bar-track">
+                      <div className="sim-bar-expected" style={{width: `${(expected / maxPct) * 100}%`}} />
+                      <div className="sim-bar-actual" style={{width: `${(actual / maxPct) * 100}%`, background: r.color}} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="side">
+          <div style={{fontSize:'0.85rem', color:'#aaa', marginBottom:'0.3rem'}}>Weighted pick in GDScript:</div>
+          <div className="formula-box">{gdscript}</div>
+          <p style={{color:'#666', fontSize:'0.78rem', marginTop:'0.5rem'}}>
+            Weights don't need to sum to 100 — each item's chance is weight / total. Double-click the code to copy it.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ========== 3. DICE ROLLER & DISTRIBUTION ==========
+function diceDistribution(count, sides) {
+  // dist[sum] = number of ways to roll that sum
+  let dist = [1];
+  for (let d = 0; d < count; d++) {
+    const next = new Array(dist.length + sides).fill(0);
+    for (let s = 0; s < dist.length; s++) {
+      if (!dist[s]) continue;
+      for (let f = 1; f <= sides; f++) next[s + f] += dist[s];
+    }
+    dist = next;
+  }
+  return dist;
+}
+
+function DiceRoller() {
+  const canvasRef = useRef(null);
+  const [count, setCount] = useState(2);
+  const [sides, setSides] = useState(6);
+  const [mod, setMod] = useState(0);
+  const [roll, setRoll] = useState(null);
+
+  const dist = useMemo(() => diceDistribution(count, sides), [count, sides]);
+  const totalWays = useMemo(() => dist.reduce((a, b) => a + b, 0), [dist]);
+  const minSum = count, maxSum = count * sides;
+  const mean = count * (sides + 1) / 2;
+
+  const doRoll = () => {
+    const dice = Array.from({ length: count }, () => 1 + Math.floor(Math.random() * sides));
+    setRoll({ dice, total: dice.reduce((a, b) => a + b, 0) });
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    const padL = 36, padR = 10, padT = 12, padB = 24;
+    const gw = W - padL - padR, gh = H - padT - padB;
+    const range = maxSum - minSum + 1;
+    const maxProb = Math.max(...dist.slice(minSum, maxSum + 1)) / totalWays;
+
+    // Y gridlines
+    ctx.font = '10px monospace'; ctx.textAlign = 'right';
+    for (let g = 0; g <= 3; g++) {
+      const frac = g / 3;
+      const y = padT + gh * (1 - frac);
+      ctx.strokeStyle = '#1e1e35'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+      ctx.fillStyle = '#666';
+      ctx.fillText((maxProb * frac * 100).toFixed(1) + '%', padL - 4, y + 3);
+    }
+
+    // Bars
+    const bw = gw / range;
+    for (let s = minSum; s <= maxSum; s++) {
+      const prob = dist[s] / totalWays;
+      const bh = (prob / maxProb) * gh;
+      const x = padL + (s - minSum) * bw;
+      const isRolled = roll && roll.total === s;
+      ctx.fillStyle = isRolled ? '#f97316' : 'rgba(249, 115, 22, 0.35)';
+      ctx.fillRect(x + Math.min(1, bw * 0.08), padT + gh - bh, Math.max(1, bw - Math.min(2, bw * 0.16)), bh);
+    }
+
+    // X labels: min, mean, max
+    ctx.textAlign = 'center'; ctx.fillStyle = '#666';
+    ctx.fillText(String(minSum), padL + bw / 2, H - 8);
+    ctx.fillText('μ=' + mean, padL + ((mean - minSum + 0.5) / range) * gw, H - 8);
+    if (range > 1) ctx.fillText(String(maxSum), padL + gw - bw / 2, H - 8);
+    ctx.textAlign = 'left';
+
+    // Mean marker
+    const mx = padL + ((mean - minSum + 0.5) / range) * gw;
+    ctx.setLineDash([3, 3]); ctx.strokeStyle = '#ec489988'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(mx, padT); ctx.lineTo(mx, padT + gh); ctx.stroke();
+    ctx.setLineDash([]);
+  }, [dist, totalWays, minSum, maxSum, mean, roll]);
+
+  const rolledProb = roll ? (dist[roll.total] / totalWays) * 100 : null;
+
+  return (
+    <div className="rp-card">
+      <h2><span>🎲</span> Dice Roller & Distribution</h2>
+      <div className="flex-canvas">
+        <div>
+          <canvas ref={canvasRef} width={460} height={220} />
+          <div className="controls-row">
+            <label>Dice
+              <input type="number" min="1" max="10" value={count}
+                onChange={e => setCount(Math.max(1, Math.min(10, Math.floor(+e.target.value || 1))))} />
+            </label>
+            <label>Sides
+              <select className="dice-sel" value={sides} onChange={e => setSides(+e.target.value)}>
+                {[4, 6, 8, 10, 12, 20, 100].map(s => <option key={s} value={s}>d{s}</option>)}
+              </select>
+            </label>
+            <label>Modifier
+              <input type="number" min="-99" max="99" value={mod}
+                onChange={e => setMod(Math.max(-99, Math.min(99, Math.floor(+e.target.value || 0))))} />
+            </label>
+            <button className="btn" onClick={doRoll}>🎲 Roll {count}d{sides}{mod !== 0 ? (mod > 0 ? `+${mod}` : mod) : ''}</button>
+          </div>
+          {roll && (
+            <div style={{display:'flex', alignItems:'center', flexWrap:'wrap', marginTop:'0.5rem'}}>
+              {roll.dice.map((d, i) => <span key={i} className="dice-chip">{d}</span>)}
+              {mod !== 0 && <span style={{color:'#888', margin:'0 4px', fontFamily:'Consolas, monospace'}}>{mod > 0 ? `+${mod}` : mod}</span>}
+              <span className="dice-total">{roll.total + mod}</span>
+              <span style={{color:'#666', fontSize:'0.78rem', marginLeft:8}}>
+                P(sum={roll.total}) = {rolledProb.toFixed(2)}%
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="side">
+          <div className="big-stat">
+            <div className="stat"><div className="lbl">Range</div><div className="num">{minSum + mod}–{maxSum + mod}</div></div>
+            <div className="stat"><div className="lbl">Average</div><div className="num">{(mean + mod).toFixed(1)}</div></div>
+            <div className="stat"><div className="lbl">Outcomes</div><div className="num">{totalWays.toLocaleString()}</div></div>
+          </div>
+          <div className="formula-box">
+<span className="comment"># Godot — roll {count}d{sides}{mod !== 0 ? (mod > 0 ? `+${mod}` : mod) : ''}</span>{`
+`}<span className="fn">func</span>{` roll(n: int, sides: int, mod: int = 0) -> int:
+    var total := mod
+    for i in n:
+        total += randi_range(1, sides)
+    return total`}
+          </div>
+          <p style={{color:'#666', fontSize:'0.78rem', marginTop:'0.5rem'}}>
+            More dice → bell curve (central limit theorem). One die is flat; 3+ dice cluster results around the average — great for "predictable but varied" damage rolls.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ========== APP ==========
+function App() {
+  return (
+    <div className="rp-page">
+      <h1 className="rp-title">🎲 RNG &amp; Probability</h1>
+      <p className="rp-subtitle">Drop rates, loot tables &amp; dice math — tune your game's randomness with real numbers</p>
+      <DropChance />
+      <LootTable />
+      <DiceRoller />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

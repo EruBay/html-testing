@@ -149,8 +149,13 @@ function ColorPicker({ color, setColor, setToast }) {
   const SZ = 256;
 
   useEffect(() => {
-    const newHsv = rgbToHsv(...hexToRgb(color));
-    setHsv(newHsv);
+    // Only re-derive HSV when the hex really changed — going through hex
+    // loses hue at zero saturation/value, which made the picker marker
+    // snap to the corner while dragging along the edges.
+    const currentHex = rgbToHex(...hsvToRgb(...hsv));
+    if (currentHex.toLowerCase() !== color.toLowerCase()) {
+      setHsv(rgbToHsv(...hexToRgb(color)));
+    }
   }, [color]);
 
   const drawSV = useCallback(() => {

@@ -56,12 +56,16 @@ const { useState, useEffect, useRef, useCallback } = React;
 
 // ── Utility: GLSL Syntax Highlighting ──
 function GlslCode({ code }) {
-  const highlighted = code
-    .replace(/\/\/.*/g, m => `<span class="cm">${m}</span>`)
+  // Pull comments out first so keyword/function regexes can't inject
+  // spans inside the comment text, then restore them at the end.
+  const comments = [];
+  let highlighted = code
+    .replace(/\/\/.*/g, m => { comments.push(m); return `@@${comments.length - 1}@@`; })
     .replace(/\b(float|vec2|vec3|vec4|int|void|uniform|varying|in|out|mat3|mat4|sampler2D|bool)\b/g, '<span class="type">$1</span>')
     .replace(/\b(if|else|for|return|const|struct)\b/g, '<span class="kw">$1</span>')
     .replace(/\b(abs|length|dot|normalize|clamp|mix|step|smoothstep|min|max|floor|fract|mod|sin|cos|atan|sqrt|pow|sign|cross|reflect|texture)\b/g, '<span class="fn">$1</span>')
-    .replace(/\b(\d+\.\d+|\d+\.|\.\d+)\b/g, '<span class="num">$1</span>');
+    .replace(/\b(\d+\.\d+|\d+\.|\.\d+)\b/g, '<span class="num">$1</span>')
+    .replace(/@@(\d+)@@/g, (_, i) => `<span class="cm">${comments[+i]}</span>`);
   return <div className="code-block" dangerouslySetInnerHTML={{ __html: highlighted }} />;
 }
 
@@ -737,6 +741,7 @@ function NormalMapViewer() {
         data[i*3+2] = (px.data[i*4+2] / 255) * 2 - 1;
       }
       setNormalData(data);
+      URL.revokeObjectURL(img.src);
     };
     img.src = URL.createObjectURL(file);
   };
