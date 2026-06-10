@@ -24,6 +24,51 @@
         const th = { padding: "8px 12px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" };
         const td = { padding: "7px 12px", textAlign: "right", borderBottom: "1px solid #2a2a3e" };
 
+        // Quarterly-compounded projection (contribute monthly, interest credited
+        // each quarter) — pure so what-if scenarios can reuse it
+        function simulate(initial, monthly, annual, years) {
+          const qRate = annual / 100 / 4;
+          const quarters = [];
+          let balance = initial;
+          for (let q = 1; q <= years * 4; q++) {
+            balance += monthly * 3;
+            const interest = balance * qRate;
+            balance += interest;
+            quarters.push({
+              q, year: Math.ceil(q / 4), qInYear: ((q - 1) % 4) + 1,
+              contributions: initial + q * monthly * 3,
+              interest: parseFloat(interest.toFixed(2)),
+              balance: parseFloat(balance.toFixed(2)),
+            });
+          }
+          const yearlyData = [];
+          for (let y = 1; y <= years; y++) {
+            const qs = quarters.filter(q => q.year === y);
+            const lastQ = qs[qs.length - 1];
+            yearlyData.push({
+              year: y,
+              contributed: lastQ.contributions,
+              totalInterest: parseFloat((lastQ.balance - lastQ.contributions).toFixed(2)),
+              yearInterest: parseFloat(qs.reduce((s, q) => s + q.interest, 0).toFixed(2)),
+              balance: lastQ.balance,
+            });
+          }
+          return { quarters, yearlyData };
+        }
+
+        function MRow({ emoji, title, value, sub, color }) {
+          return (
+            <div style={{ display: "flex", gap: 8, alignItems: "baseline", padding: "4px 0", fontSize: 13 }}>
+              <span style={{ flexShrink: 0 }}>{emoji}</span>
+              <span style={{ color: "#9ca3af", flex: 1 }}>{title}</span>
+              <span style={{ textAlign: "right" }}>
+                <span style={{ color: color || "#e0e0e0", fontWeight: 700, whiteSpace: "nowrap" }}>{value}</span>
+                {sub && <div style={{ color: "#555", fontSize: 11 }}>{sub}</div>}
+              </span>
+            </div>
+          );
+        }
+
         function Field({ label, value, onChange, min, max, prefix, suffix }) {
           const [local, setLocal] = useState(String(value));
 
@@ -63,7 +108,7 @@
         }
 
         // ── Growth chart (canvas, with hover inspection) ──
-        function GrowthChart({ yearlyData }) {
+        function GrowthChart({ yearlyData, realLine, markers }) {
           const ref = useRef(null);
           const [hover, setHover] = useState(null);
           const W = 660, H = 250;
@@ -123,6 +168,32 @@
             ctx.lineWidth = 2.5;
             ctx.stroke();
 
+            // Inflation-adjusted balance ("today's money")
+            if (realLine) {
+              ctx.beginPath();
+              ctx.setLineDash([6, 4]);
+              realLine.forEach((v, i) => i === 0 ? ctx.moveTo(x(i), y(v)) : ctx.lineTo(x(i), y(v)));
+              ctx.strokeStyle = "#f59e0b";
+              ctx.lineWidth = 1.5;
+              ctx.stroke();
+              ctx.setLineDash([]);
+            }
+
+            // Milestone markers
+            (markers || []).forEach((m, k) => {
+              if (m.index < 0 || m.index >= n) return;
+              const mx = x(m.index);
+              ctx.setLineDash([2, 3]);
+              ctx.strokeStyle = m.color + "88";
+              ctx.lineWidth = 1;
+              ctx.beginPath(); ctx.moveTo(mx, padT + 16); ctx.lineTo(mx, H - padB); ctx.stroke();
+              ctx.setLineDash([]);
+              ctx.font = "11px monospace";
+              ctx.textAlign = "center";
+              ctx.fillText(m.emoji, mx, padT + 10 + (k % 2) * 13);
+              ctx.textAlign = "left";
+            });
+
             // Hover crosshair + tooltip
             if (hover !== null && yearlyData[hover]) {
               const r = yearlyData[hover];
@@ -132,19 +203,22 @@
               ctx.lineWidth = 1;
               ctx.beginPath(); ctx.moveTo(hx, padT); ctx.lineTo(hx, H - padB); ctx.stroke();
               ctx.setLineDash([]);
-              [[r.balance, "#10b981"], [r.contributed, "#667eea"]].forEach(([v, c]) => {
+              const dots = [[r.balance, "#10b981"], [r.contributed, "#667eea"]];
+              if (realLine) dots.push([realLine[hover], "#f59e0b"]);
+              dots.forEach(([v, c]) => {
                 ctx.beginPath(); ctx.arc(hx, y(v), 4, 0, Math.PI * 2);
                 ctx.fillStyle = c; ctx.fill();
                 ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
               });
               const lines = [
-                "Year " + r.year,
-                "Balance:  " + fmt(r.balance),
-                "Invested: " + fmt(r.contributed),
-                "Interest: " + fmt(r.totalInterest),
+                { t: "Year " + r.year, c: "#c4b5fd" },
+                { t: "Balance:  " + fmt(r.balance), c: "#10b981" },
+                { t: "Invested: " + fmt(r.contributed), c: "#8da2ff" },
+                { t: "Interest: " + fmt(r.totalInterest), c: "#9ca3af" },
               ];
+              if (realLine) lines.push({ t: "Today's $: " + fmt(realLine[hover]), c: "#f59e0b" });
               ctx.font = "11px monospace";
-              const bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16;
+              const bw = Math.max(...lines.map(l => ctx.measureText(l.t).width)) + 16;
               const bh = lines.length * 15 + 10;
               const bx = hx + bw + 12 > W - padR ? hx - bw - 12 : hx + 12;
               const by = padT + 4;
@@ -155,11 +229,11 @@
               ctx.roundRect ? ctx.roundRect(bx, by, bw, bh, 6) : ctx.rect(bx, by, bw, bh);
               ctx.fill(); ctx.stroke();
               lines.forEach((l, i) => {
-                ctx.fillStyle = i === 0 ? "#c4b5fd" : i === 1 ? "#10b981" : i === 2 ? "#8da2ff" : "#9ca3af";
-                ctx.fillText(l, bx + 8, by + 18 + i * 15);
+                ctx.fillStyle = l.c;
+                ctx.fillText(l.t, bx + 8, by + 18 + i * 15);
               });
             }
-          }, [yearlyData, hover]);
+          }, [yearlyData, hover, realLine, markers]);
 
           const onMove = e => {
             const rect = ref.current.getBoundingClientRect();
@@ -172,9 +246,13 @@
 
           return (
             <div style={{ background: "#161625", border: "1px solid #2a2a3e", borderRadius: 10, padding: "12px 14px 6px", marginBottom: 16 }}>
-              <div style={{ display: "flex", gap: 16, fontSize: 11, color: "#9ca3af", fontWeight: 600, marginBottom: 6 }}>
+              <div style={{ display: "flex", gap: 14, fontSize: 11, color: "#9ca3af", fontWeight: 600, marginBottom: 6, flexWrap: "wrap" }}>
                 <span><span style={{ color: "#10b981" }}>━</span> Balance</span>
                 <span><span style={{ color: "#667eea" }}>▰</span> Contributions</span>
+                {realLine && <span><span style={{ color: "#f59e0b" }}>┅</span> Today's money</span>}
+                {(markers || []).map(m => (
+                  <span key={m.emoji} style={{ color: "#777" }}>{m.emoji} {m.short}</span>
+                ))}
                 <span style={{ marginLeft: "auto", color: "#555", fontWeight: 400 }}>hover to inspect</span>
               </div>
               <canvas
@@ -198,49 +276,67 @@
           const [annual, setAnnual] = useState(SAVED.annual ?? 9);
           const [years, setYears] = useState(SAVED.years ?? 20);
           const [initial, setInitial] = useState(SAVED.initial ?? 0);
+          const [inflation, setInflation] = useState(SAVED.inflation ?? 0);
           const [view, setView] = useState("yearly");
 
           useEffect(() => {
-            try { localStorage.setItem("ht-finance", JSON.stringify({ monthly, annual, years, initial })); }
+            try { localStorage.setItem("ht-finance", JSON.stringify({ monthly, annual, years, initial, inflation })); }
             catch (e) { /* storage unavailable */ }
-          }, [monthly, annual, years, initial]);
+          }, [monthly, annual, years, initial, inflation]);
 
-          const { quarters, yearlyData } = useMemo(() => {
-            const qRate = annual / 100 / 4;
-            const quarters = [];
-            let balance = initial;
-            for (let q = 1; q <= years * 4; q++) {
-              balance += monthly * 3;
-              const interest = balance * qRate;
-              balance += interest;
-              quarters.push({
-                q, year: Math.ceil(q / 4), qInYear: ((q - 1) % 4) + 1,
-                contributions: initial + q * monthly * 3,
-                interest: parseFloat(interest.toFixed(2)),
-                balance: parseFloat(balance.toFixed(2)),
-              });
-            }
-            const yearlyData = [];
-            for (let y = 1; y <= years; y++) {
-              const qs = quarters.filter(q => q.year === y);
-              const last = qs[qs.length - 1];
-              yearlyData.push({
-                year: y,
-                contributed: last.contributions,
-                totalInterest: parseFloat((last.balance - last.contributions).toFixed(2)),
-                yearInterest: parseFloat(qs.reduce((s, q) => s + q.interest, 0).toFixed(2)),
-                balance: last.balance,
-              });
-            }
-            return { quarters, yearlyData };
-          }, [monthly, annual, years, initial]);
+          const { quarters, yearlyData } = useMemo(
+            () => simulate(initial, monthly, annual, years),
+            [monthly, annual, years, initial]
+          );
 
           const last = quarters[quarters.length - 1];
 
+          // ── Milestones ──
+          const milestones = useMemo(() => {
+            // The point where interest earned matches every dollar you put in
+            const gainBack = quarters.find(q => q.balance - q.contributions >= q.contributions) || null;
+            // The year your money starts out-earning your own deposits
+            const crossover = yearlyData.find(r => r.yearInterest >= monthly * 12) || null;
+            const thresholds = [10e3, 25e3, 50e3, 100e3, 250e3, 500e3, 1e6, 2e6, 5e6, 10e6];
+            const reached = thresholds
+              .filter(t => t > initial && t <= last.balance)
+              .map(t => ({ t, q: quarters.find(q => q.balance >= t) }))
+              .slice(-4);
+            const next = thresholds.find(t => t > last.balance) || null;
+            return { gainBack, crossover, reached, next };
+          }, [quarters, yearlyData, monthly, initial, last]);
+
+          // ── What moves the needle ──
+          const levers = useMemo(() => {
+            const finalOf = (i, m, a, y) => {
+              const d = simulate(i, m, a, y);
+              return d.quarters[d.quarters.length - 1].balance;
+            };
+            const base = last.balance;
+            return [
+              { label: "+$100 / month", delta: finalOf(initial, monthly + 100, annual, years) - base },
+              { label: "+1% return", delta: finalOf(initial, monthly, annual + 1, years) - base },
+              { label: "+5 more years", delta: finalOf(initial, monthly, annual, Math.min(years + 5, 55)) - base },
+            ].map(l => ({ ...l, pct: base > 0 ? (l.delta / base) * 100 : 0 }));
+          }, [initial, monthly, annual, years, last]);
+
+          // ── Inflation adjustment ──
+          const inflOn = inflation > 0;
+          const realLine = inflOn
+            ? yearlyData.map(r => r.balance / Math.pow(1 + inflation / 100, r.year))
+            : null;
+          const realFinal = inflOn ? realLine[realLine.length - 1] : null;
+
+          const chartMarkers = [];
+          if (milestones.crossover) chartMarkers.push({ index: milestones.crossover.year - 1, emoji: "⚡", color: "#f59e0b", short: "interest > deposits" });
+          if (milestones.gainBack) chartMarkers.push({ index: milestones.gainBack.year - 1, emoji: "💰", color: "#ec4899", short: "gains = invested" });
+
+          const fmtWhen = q => q ? `Year ${q.year}` + (q.qInYear > 1 ? `, Q${q.qInYear}` : "") : `not within ${years} yrs`;
+
           const exportCSV = () => {
             const rows = view === "yearly"
-              ? [["Year", "Total Invested", "Interest This Year", "Total Interest", "Balance"],
-                 ...yearlyData.map(r => [r.year, r.contributed, r.yearInterest, r.totalInterest, r.balance])]
+              ? [["Year", "Total Invested", "Interest This Year", "Total Interest", "Balance", ...(inflOn ? ["Todays Money"] : [])],
+                 ...yearlyData.map((r, i) => [r.year, r.contributed, r.yearInterest, r.totalInterest, r.balance, ...(inflOn ? [realLine[i].toFixed(2)] : [])])]
               : [["Quarter", "Year", "Total Invested", "Interest Earned", "Balance"],
                  ...quarters.map(r => [`Q${r.qInYear}`, r.year, r.contributions, r.interest, r.balance])];
             const csv = rows.map(r => r.join(",")).join("\n");
@@ -264,6 +360,7 @@
                 <Field label="Monthly Investment" value={monthly} onChange={setMonthly} min={1} max={100000} prefix="$" />
                 <Field label="Annual Return" value={annual} onChange={setAnnual} min={0.1} max={50} suffix="%" />
                 <Field label="Years" value={years} onChange={setYears} min={1} max={50} suffix="yrs" />
+                <Field label="Inflation (0 = off)" value={inflation} onChange={setInflation} min={0} max={20} suffix="%" />
               </div>
 
               {/* Summary */}
@@ -271,7 +368,8 @@
                 {[
                   { label: "Total Invested", val: fmt(last.contributions), color: "#667eea" },
                   { label: "Interest Earned", val: fmt(last.balance - last.contributions), color: "#10b981" },
-                  { label: "Final Balance", val: fmt(last.balance), color: "#f59e0b" },
+                  { label: "Final Balance", val: fmt(last.balance), color: "#f43f5e" },
+                  ...(inflOn ? [{ label: `In Today's Money (${inflation}% infl.)`, val: fmt(realFinal), color: "#f59e0b" }] : []),
                 ].map(s => (
                   <div key={s.label} style={{ flex: 1, minWidth: 130, padding: "10px 14px", background: "#111", borderRadius: 8, borderTop: `3px solid ${s.color}` }}>
                     <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 600 }}>{s.label}</div>
@@ -281,7 +379,47 @@
               </div>
 
               {/* Growth chart */}
-              <GrowthChart yearlyData={yearlyData} />
+              <GrowthChart yearlyData={yearlyData} realLine={realLine} markers={chartMarkers} />
+
+              {/* Milestones + levers */}
+              <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "stretch" }}>
+                <div style={{ flex: "1 1 320px", background: "#161625", border: "1px solid #2a2a3e", borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#c4b5fd", marginBottom: 6 }}>🏁 Milestones</div>
+                  <MRow emoji="💰" title="Gains equal everything you invested"
+                    value={fmtWhen(milestones.gainBack)}
+                    color={milestones.gainBack ? "#ec4899" : "#666"}
+                    sub={milestones.gainBack
+                      ? `${fmtCompact(milestones.gainBack.contributions)} in, ${fmtCompact(milestones.gainBack.balance - milestones.gainBack.contributions)} earned`
+                      : "raise deposits, return or time"} />
+                  <MRow emoji="⚡" title="Interest out-earns your deposits"
+                    value={milestones.crossover ? `Year ${milestones.crossover.year}` : `not within ${years} yrs`}
+                    color={milestones.crossover ? "#f59e0b" : "#666"}
+                    sub={milestones.crossover
+                      ? `${fmtCompact(milestones.crossover.yearInterest)}/yr vs ${fmtCompact(monthly * 12)}/yr deposited`
+                      : null} />
+                  <MRow emoji="🕰️" title="Doubling time (Rule of 72)"
+                    value={`≈ ${(72 / annual).toFixed(1)} yrs`}
+                    sub={`at ${annual}% annual return`} />
+                  {milestones.reached.map(({ t, q }) => (
+                    <MRow key={t} emoji="🎯" title={`Balance hits ${fmtCompact(t)}`} value={fmtWhen(q)} color="#10b981" />
+                  ))}
+                  {milestones.next && (
+                    <MRow emoji="🔮" title={`Next stop: ${fmtCompact(milestones.next)}`}
+                      value={`not within ${years} yrs`} color="#666" />
+                  )}
+                </div>
+                <div style={{ flex: "1 1 240px", background: "#161625", border: "1px solid #2a2a3e", borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#c4b5fd", marginBottom: 6 }}>🧪 What moves the needle</div>
+                  {levers.map(l => (
+                    <MRow key={l.label} emoji="↗" title={l.label}
+                      value={`+${fmtCompact(l.delta)}`} color="#10b981"
+                      sub={`+${l.pct.toFixed(1)}% vs current plan`} />
+                  ))}
+                  <div style={{ color: "#555", fontSize: 11, marginTop: 6 }}>
+                    Each tweak applied alone to your current {fmtCompact(last.balance)} plan
+                  </div>
+                </div>
+              </div>
 
               {/* View toggle + export */}
               <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
